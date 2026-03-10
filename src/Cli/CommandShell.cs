@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Reflection;
 using System.Text.Json;
 using PeekWin.Models;
 using PeekWin.Services;
@@ -32,6 +33,7 @@ public sealed class CommandShell
             return args[0].ToLowerInvariant() switch
             {
                 "help" or "--help" or "-h" => HelpAndSuccess(),
+                "version" => VersionAndSuccess(),
                 "window" => await HandleWindowAsync(args[1..]),
                 "click" => HandleClick(args[1..]),
                 "mouse" => HandleMouse(args[1..]),
@@ -54,6 +56,28 @@ public sealed class CommandShell
     {
         PrintHelp();
         return 0;
+    }
+
+    private static int VersionAndSuccess()
+    {
+        Console.WriteLine(GetVersionText());
+        return 0;
+    }
+
+    public static string GetVersionText()
+    {
+        var assembly = typeof(CommandShell).Assembly;
+        var informationalVersion = assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion;
+
+        if (!string.IsNullOrWhiteSpace(informationalVersion))
+        {
+            return informationalVersion;
+        }
+
+        var assemblyVersion = assembly.GetName().Version?.ToString();
+        return string.IsNullOrWhiteSpace(assemblyVersion) ? "unknown" : assemblyVersion;
     }
 
     private Task<int> HandleWindowAsync(string[] args)
@@ -437,6 +461,7 @@ public sealed class CommandShell
         Console.WriteLine("peekwin - Windows-native automation CLI");
         Console.WriteLine();
         Console.WriteLine("Commands:");
+        Console.WriteLine("  peekwin version");
         Console.WriteLine("  peekwin window list [--json]");
         Console.WriteLine("  peekwin window focus --handle <HWND>|--title <text> [--json]");
         Console.WriteLine("  peekwin window inspect --handle <HWND> [--json]");

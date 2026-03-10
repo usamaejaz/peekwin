@@ -6,6 +6,9 @@
     <Nullable>enable</Nullable>
     <RootNamespace>PeekWin</RootNamespace>
     <AssemblyName>peekwin</AssemblyName>
+    <Version>0.1.0</Version>
+    <InformationalVersion>0.1.0</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>

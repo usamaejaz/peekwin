@@ -2,12 +2,15 @@
 
 peekwin is a Windows-native CLI for OS-level input, window control, inspection, and screenshots.
 
+Current release: `0.1.0`
+
 It is deliberately small right now. The goal is to get the core primitives right first so a future MCP server can wrap them without changing the internal architecture.
 
 ## Current scope
 
 Implemented command surface:
 
+- `version`
 - `window list`
 - `window focus`
 - `window inspect`
@@ -46,6 +49,12 @@ Run locally on Windows:
 dotnet run --project .\src\peekwin.csproj -- window list
 ```
 
+Print the CLI version:
+
+```powershell
+dotnet run --project .\src\peekwin.csproj -- version
+```
+
 Publish a single-file build if you want:
 
 ```powershell
@@ -64,8 +73,8 @@ Tag format:
 Push a tag like this to trigger the release workflow:
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v0.1.0
+git push origin v0.1.0
 ```
 
 Produced release assets:
@@ -76,6 +85,12 @@ Produced release assets:
 Each archive contains a self-contained Windows build of `peekwin`, so the target machine does not need a separate .NET runtime installation.
 
 ## Usage
+
+### Version
+
+```powershell
+peekwin version
+```
 
 ### List windows
 
