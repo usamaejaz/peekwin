@@ -65,6 +65,14 @@ public sealed class WindowService
             : FocusWindow((nint)match.Handle);
     }
 
+    public WindowInspection InspectWindowByTitle(string title)
+    {
+        var match = ListWindows().FirstOrDefault(w => w.Title.Contains(title, StringComparison.OrdinalIgnoreCase));
+        return match is null
+            ? throw new InvalidOperationException($"No window matched title: {title}")
+            : InspectWindow((nint)match.Handle);
+    }
+
     public WindowInspection InspectWindow(nint hwnd)
     {
         if (hwnd == 0 || !NativeMethods.IsWindow(hwnd) || !NativeMethods.GetWindowRect(hwnd, out var rect))

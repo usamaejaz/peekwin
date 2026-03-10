@@ -11,6 +11,18 @@ public sealed class ScreenshotService
     private const int MaxCaptureDimension = 16384;
     private const long MaxCapturePixels = 268_435_456;
 
+    public ScreenshotInfo GetScreenshotInfo()
+    {
+        var screens = GetScreens()
+            .Select((bounds, index) => new ScreenInfo(index, bounds))
+            .ToList();
+
+        return new ScreenshotInfo(
+            "virtual-desktop",
+            GetVirtualScreenBounds(),
+            screens);
+    }
+
     public CommandResult Capture(string outputPath, int? screenIndex, nint windowHandle)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? Environment.CurrentDirectory);

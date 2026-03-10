@@ -44,7 +44,7 @@ public sealed class CommandShell
                 "press" => HandlePress(args[1..]),
                 "hotkey" => HandleHotkey(args[1..]),
                 "hold" => await HandleHoldAsync(args[1..]),
-                "screenshot" => HandleScreenshot(args[1..]),
+                "screenshot" => HandleScreenshotCommand(args[1..]),
                 _ => Fail($"Unknown command: {args[0]}")
             };
         }
@@ -117,7 +117,7 @@ public sealed class CommandShell
     {
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin window list [--json]");
+            Console.WriteLine("Usage: peekwin window list [--all] [--json]");
             return 0;
         }
 
@@ -127,6 +127,10 @@ public sealed class CommandShell
         }
 
         var windows = _windowService.ListWindows();
+        if (!options.HasFlag("all"))
+        {
+            windows = windows.Where(window => window.IsVisible).ToList();
+        }
 
         if (options.HasFlag("json"))
         {
@@ -175,7 +179,7 @@ public sealed class CommandShell
     {
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin window inspect --handle <HWND> [--json]");
+            Console.WriteLine("Usage: peekwin window inspect (--handle <HWND> | --title <text>) [--json]");
             return 0;
         }
 
@@ -185,12 +189,15 @@ public sealed class CommandShell
         }
 
         var handle = options.TryGetHandle("handle");
-        if (handle == 0)
+        var title = options.GetValueOrDefault("title");
+        if ((handle == 0 && string.IsNullOrWhiteSpace(title)) || (handle != 0 && !string.IsNullOrWhiteSpace(title)))
         {
-            return Fail("window inspect requires --handle.");
+            return Fail("window inspect requires exactly one of --handle or --title.");
         }
 
-        var inspection = _windowService.InspectWindow(handle);
+        var inspection = handle != 0
+            ? _windowService.InspectWindow(handle)
+            : _windowService.InspectWindowByTitle(title!);
         if (options.HasFlag("json"))
         {
             Console.WriteLine(JsonSerializer.Serialize(inspection, JsonOptions));
@@ -442,6 +449,26 @@ public sealed class CommandShell
         }
     }
 
+    private int HandleScreenshotCommand(string[] args)
+    {
+        if (IsHelpRequest(args))
+        {
+            PrintScreenshotHelp();
+            return 0;
+        }
+
+        if (args.Length > 0 && !args[0].StartsWith("--", StringComparison.Ordinal))
+        {
+            return args[0].ToLowerInvariant() switch
+            {
+                "info" => HandleScreenshotInfo(args[1..]),
+                _ => Fail($"Unknown screenshot subcommand: {args[0]}")
+            };
+        }
+
+        return HandleScreenshot(args);
+    }
+
     private int HandleScreenshot(string[] args)
     {
         if (IsHelpRequest(args))
@@ -466,6 +493,37 @@ public sealed class CommandShell
         var result = _screenshotService.Capture(output, screenIndex, windowHandle);
         WriteResult(result, options.HasFlag("json"));
         return result.Success ? 0 : 1;
+    }
+
+    private int HandleScreenshotInfo(string[] args)
+    {
+        if (IsHelpRequest(args))
+        {
+            Console.WriteLine("Usage: peekwin screenshot info [--json]");
+            return 0;
+        }
+
+        if (!TryParseOptions(args, out var options))
+        {
+            return 1;
+        }
+
+        var info = _screenshotService.GetScreenshotInfo();
+        if (options.HasFlag("json"))
+        {
+            Console.WriteLine(JsonSerializer.Serialize(info, JsonOptions));
+            return 0;
+        }
+
+        Console.WriteLine($"Default capture target: {info.DefaultCaptureTarget}");
+        Console.WriteLine($"Virtual desktop: {FormatRect(info.VirtualBounds)}");
+        Console.WriteLine($"Screens: {info.Screens.Count}");
+        foreach (var screen in info.Screens)
+        {
+            Console.WriteLine($"- Screen {screen.Index}: {FormatRect(screen.Bounds)}");
+        }
+
+        return 0;
     }
 
     private static bool IsHelpRequest(IReadOnlyList<string> args)
@@ -494,6 +552,9 @@ public sealed class CommandShell
         "right" => MouseButton.Right,
         _ => throw new InvalidOperationException($"Unsupported mouse button: {value}")
     };
+
+    private static string FormatRect(RectDto rect)
+        => $"{rect.Left},{rect.Top} {rect.Width}x{rect.Height}";
 
     private static (string[] Args, bool Verbose) ExtractGlobalFlags(string[] args)
     {
@@ -559,9 +620,9 @@ public sealed class CommandShell
         Console.WriteLine();
         Console.WriteLine("Commands:");
         Console.WriteLine("  peekwin version");
-        Console.WriteLine("  peekwin window list [--json]");
+        Console.WriteLine("  peekwin window list [--all] [--json]");
         Console.WriteLine("  peekwin window focus --handle <HWND>|--title <text> [--json]");
-        Console.WriteLine("  peekwin window inspect --handle <HWND> [--json]");
+        Console.WriteLine("  peekwin window inspect --handle <HWND>|--title <text> [--json]");
         Console.WriteLine("  peekwin click --x <n> --y <n> [--button left|right] [--double] [--json]");
         Console.WriteLine("  peekwin mouse move --x <n> --y <n> [--json]");
         Console.WriteLine("  peekwin mouse down [--button left|right] [--x <n> --y <n>] [--json]");
@@ -572,6 +633,7 @@ public sealed class CommandShell
         Console.WriteLine("  peekwin hold key --key <name> [--duration-ms <n>] [--json]");
         Console.WriteLine("  peekwin hold mouse --button left|right [--duration-ms <n>] [--json]");
         Console.WriteLine("  peekwin screenshot [--screen <n>|--window <HWND>] [--output <path>] [--json]");
+        Console.WriteLine("  peekwin screenshot info [--json]");
         Console.WriteLine();
         Console.WriteLine("Global flags:");
         Console.WriteLine("  --verbose, -v    Print exception details for troubleshooting");
@@ -582,9 +644,9 @@ public sealed class CommandShell
     private static void PrintWindowHelp()
     {
         Console.WriteLine("Window commands:");
-        Console.WriteLine("  peekwin window list [--json]");
+        Console.WriteLine("  peekwin window list [--all] [--json]");
         Console.WriteLine("  peekwin window focus (--handle <HWND> | --title <text>) [--json]");
-        Console.WriteLine("  peekwin window inspect --handle <HWND> [--json]");
+        Console.WriteLine("  peekwin window inspect (--handle <HWND> | --title <text>) [--json]");
     }
 
     private static void PrintMouseHelp()
@@ -600,6 +662,13 @@ public sealed class CommandShell
         Console.WriteLine("Hold commands:");
         Console.WriteLine("  peekwin hold key --key <name> [--duration-ms <n>] [--json]");
         Console.WriteLine("  peekwin hold mouse --button left|right [--duration-ms <n>] [--json]");
+    }
+
+    private static void PrintScreenshotHelp()
+    {
+        Console.WriteLine("Screenshot commands:");
+        Console.WriteLine("  peekwin screenshot [--screen <n>|--window <HWND>] [--output <path>] [--json]");
+        Console.WriteLine("  peekwin screenshot info [--json]");
     }
 }
 

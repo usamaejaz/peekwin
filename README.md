@@ -105,8 +105,11 @@ peekwin --verbose version
 
 ```powershell
 peekwin window list
+peekwin window list --all
 peekwin window list --json
 ```
+
+`window list` now shows only visible windows by default. Use `--all` to include hidden windows as well.
 
 Example JSON fields:
 
@@ -140,6 +143,7 @@ peekwin window focus --title "Notepad"
 
 ```powershell
 peekwin window inspect --handle 0x001F09A2
+peekwin window inspect --title "Notepad"
 peekwin window inspect --handle 0x001F09A2 --json
 ```
 
@@ -213,7 +217,7 @@ peekwin hold mouse --button right --duration-ms 800
 
 ### Screenshot
 
-Capture the full virtual desktop:
+Capture the full virtual desktop (all monitors in the current virtual screen rectangle):
 
 ```powershell
 peekwin screenshot --output .\desktop.png
@@ -230,6 +234,15 @@ Capture a specific window rectangle:
 ```powershell
 peekwin screenshot --window 0x001F09A2 --output .\window.png
 ```
+
+Inspect the current capture layout and dimensions:
+
+```powershell
+peekwin screenshot info
+peekwin screenshot info --json
+```
+
+`screenshot info` reports the virtual desktop bounds plus each enumerated monitor, which is useful when the default full-desktop screenshot spans multiple monitors and you need click coordinates relative to the final captured image.
 
 ## Architecture
 
@@ -254,7 +267,7 @@ Models/
 
 - `WindowService` handles enumeration, focus, metadata inspection, and best-effort UI Automation child enumeration.
 - `InputService` wraps `SendInput` and cursor positioning.
-- `ScreenshotService` captures the full virtual desktop, a specific monitor, or a window rectangle.
+- `ScreenshotService` captures the full virtual desktop, a specific monitor, or a window rectangle, and can report the virtual desktop plus per-monitor bounds via `screenshot info`.
 - `VirtualDesktopHelper` only exposes what Windows safely gives us right now: whether a window appears to belong to the current desktop. This is enough for listing and caveats, not full desktop orchestration.
 - `ScreenshotService` uses Win32 monitor enumeration and screen copying, so it can build from a Linux host without depending on WindowsDesktop SDK targets.
 

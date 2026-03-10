@@ -17,7 +17,7 @@ Target: future MCP server wrapping—architecture is stable primitives first, th
 - Services never handle CLI parsing—they accept typed C# parameters
 - All window handles stored as `nint` internally, formatted as hex (`0x...`) for CLI
 - `CommandResult` record ([Models/CommandResult.cs](src/Models/CommandResult.cs)) for success/error results
-- Records for immutable DTOs: `WindowInfo`, `WindowInspection`, `AutomationElementInfo`
+- Records for immutable DTOs: `WindowInfo`, `WindowInspection`, `AutomationElementInfo`, `ScreenshotInfo`
 
 ## Critical Implementation Details
 
@@ -48,11 +48,11 @@ No desktop IDs or counts—this is a Windows platform limitation.
 ### CLI Option Parsing
 Custom `OptionSet` class (bottom of [CommandShell.cs](src/Cli/CommandShell.cs)):
 - Parses `--key value` or `--key=value` pairs
-- Boolean flags: `--json`, `--visible`
+- Boolean flags: `--json`, `--all`
 - Case-insensitive keys
 - Throws on unexpected tokens (no positional args after main command)
 - `CommandShell` catches parse failures and reports them as `Invalid arguments: ...`
-- Global flag `--verbose` / `-v` can appear anywhere and enables exception detail output
+- Global flag `--verbose` / `-v` is consumed only before the command name, so literal option values like `type --text -v` still work
 
 ## Development Workflow
 
@@ -65,6 +65,8 @@ dotnet build -c Release
 ```powershell
 dotnet run --project .\src\peekwin.csproj -- window list --json
 ```
+
+By default `window list` filters to visible windows; use `--all` to include hidden ones.
 
 **Smoke test:**
 ```powershell
@@ -91,6 +93,7 @@ dotnet run --project .\src\peekwin.csproj -- window list --json
 - Use `System.Text.Json` with `WriteIndented = true` (see `JsonOptions` in CommandShell)
 - Serialize service layer results directly—DTOs designed for JSON
 - Example: `window list --json` returns `WindowInfo[]`
+- `screenshot info --json` returns virtual desktop bounds plus per-monitor bounds; default `screenshot` without `--screen` captures that full virtual rectangle
 
 ## Testing & Debugging
 
