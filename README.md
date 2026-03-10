@@ -85,10 +85,10 @@ git push origin v0.1.0
 
 Produced release assets:
 
-- `peekwin-<tag>-win-x64.zip`
-- `peekwin-<tag>-win-arm64.zip`
+- `peekwin-<tag>-win-x64.exe`
+- `peekwin-<tag>-win-arm64.exe`
 
-Each archive contains a self-contained Windows build of `peekwin`, so the target machine does not need a separate .NET runtime installation.
+Each executable is a self-contained Windows build of `peekwin`, so the target machine does not need a separate .NET runtime installation.
 
 ## Usage
 
