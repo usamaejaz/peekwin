@@ -43,13 +43,13 @@ dotnet build -c Release
 Run locally on Windows:
 
 ```powershell
-dotnet run --project .\src\peekwin -- window list
+dotnet run --project .\src\peekwin.csproj -- window list
 ```
 
 Publish a single-file build if you want:
 
 ```powershell
-dotnet publish .\src\peekwin\peekwin.csproj -c Release -r win-x64 --self-contained false
+dotnet publish .\src\peekwin.csproj -c Release -r win-x64 --self-contained false
 ```
 
 ## Usage
