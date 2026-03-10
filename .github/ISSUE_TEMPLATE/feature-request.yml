@@ -1,0 +1,33 @@
+name: Feature request
+description: Suggest a new automation primitive or CLI capability
+labels:
+  - enhancement
+body:
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      placeholder: Add a command to inspect the focused element
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Describe the automation task you cannot do today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed command or behavior
+      description: Include suggested CLI syntax, JSON output, or service-layer behavior if you have one.
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Windows or app-specific constraints
+      description: Note UAC, virtual desktop, monitor, or target-app limitations that matter.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

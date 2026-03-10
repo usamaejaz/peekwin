@@ -61,6 +61,12 @@ Publish a single-file build if you want:
 dotnet publish .\src\peekwin.csproj -c Release -r win-x64 --self-contained false
 ```
 
+Run the lightweight Windows smoke test:
+
+```powershell
+.\scripts\smoke-test.ps1
+```
+
 ## Releases
 
 GitHub release publishing is automated for pushed version tags that match `v*`.
@@ -90,7 +96,10 @@ Each archive contains a self-contained Windows build of `peekwin`, so the target
 
 ```powershell
 peekwin version
+peekwin --verbose version
 ```
+
+`--verbose` (or `-v`) is a global flag. It prints exception details for troubleshooting command failures.
 
 ### List windows
 

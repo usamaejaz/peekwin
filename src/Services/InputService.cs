@@ -6,7 +6,7 @@ namespace PeekWin.Services;
 
 public sealed class InputService
 {
-    public void Click(int x, int y, MouseButton button, bool isDouble)
+    public async Task ClickAsync(int x, int y, MouseButton button, bool isDouble)
     {
         MoveMouse(x, y);
         var count = isDouble ? 2 : 1;
@@ -16,7 +16,7 @@ public sealed class InputService
             MouseUp(button);
             if (isDouble && i == 0)
             {
-                Thread.Sleep(60);
+                await Task.Delay(60).ConfigureAwait(false);
             }
         }
     }
@@ -29,7 +29,7 @@ public sealed class InputService
         }
     }
 
-    public void TypeText(string text, int delayMs)
+    public async Task TypeTextAsync(string text, int delayMs)
     {
         foreach (var ch in text)
         {
@@ -64,7 +64,7 @@ public sealed class InputService
             Send(inputs);
             if (delayMs > 0)
             {
-                Thread.Sleep(delayMs);
+                await Task.Delay(delayMs).ConfigureAwait(false);
             }
         }
     }
@@ -93,18 +93,18 @@ public sealed class InputService
         }
     }
 
-    public void HoldKey(string key, int durationMs)
+    public async Task HoldKeyAsync(string key, int durationMs)
     {
         var vk = VirtualKeyParser.Parse(key);
         KeyDown(vk);
-        Thread.Sleep(durationMs);
+        await Task.Delay(durationMs).ConfigureAwait(false);
         KeyUp(vk);
     }
 
-    public void HoldMouse(MouseButton button, int durationMs)
+    public async Task HoldMouseAsync(MouseButton button, int durationMs)
     {
         MouseDown(button);
-        Thread.Sleep(durationMs);
+        await Task.Delay(durationMs).ConfigureAwait(false);
         MouseUp(button);
     }
 
@@ -223,6 +223,22 @@ internal static class VirtualKeyParser
         ["delete"] = 0x2E,
         ["numlock"] = 0x90,
         ["scrolllock"] = 0x91,
+        ["numpad0"] = 0x60,
+        ["numpad1"] = 0x61,
+        ["numpad2"] = 0x62,
+        ["numpad3"] = 0x63,
+        ["numpad4"] = 0x64,
+        ["numpad5"] = 0x65,
+        ["numpad6"] = 0x66,
+        ["numpad7"] = 0x67,
+        ["numpad8"] = 0x68,
+        ["numpad9"] = 0x69,
+        ["multiply"] = 0x6A,
+        ["add"] = 0x6B,
+        ["separator"] = 0x6C,
+        ["subtract"] = 0x6D,
+        ["decimal"] = 0x6E,
+        ["divide"] = 0x6F,
         ["lwin"] = 0x5B,
         ["rwin"] = 0x5C,
         ["apps"] = 0x5D,
@@ -238,6 +254,28 @@ internal static class VirtualKeyParser
         ["f10"] = 0x79,
         ["f11"] = 0x7A,
         ["f12"] = 0x7B,
+        ["f13"] = 0x7C,
+        ["f14"] = 0x7D,
+        ["f15"] = 0x7E,
+        ["f16"] = 0x7F,
+        ["f17"] = 0x80,
+        ["f18"] = 0x81,
+        ["f19"] = 0x82,
+        ["f20"] = 0x83,
+        ["f21"] = 0x84,
+        ["f22"] = 0x85,
+        ["f23"] = 0x86,
+        ["f24"] = 0x87,
+        ["volumemute"] = 0xAD,
+        ["mute"] = 0xAD,
+        ["volumedown"] = 0xAE,
+        ["volumeup"] = 0xAF,
+        ["medianext"] = 0xB0,
+        ["mediaprev"] = 0xB1,
+        ["mediaprevious"] = 0xB1,
+        ["mediastop"] = 0xB2,
+        ["mediaplaypause"] = 0xB3,
+        ["playpause"] = 0xB3,
         ["semicolon"] = 0xBA,
         ["plus"] = 0xBB,
         ["comma"] = 0xBC,

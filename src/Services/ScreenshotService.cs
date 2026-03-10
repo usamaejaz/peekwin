@@ -8,12 +8,20 @@ namespace PeekWin.Services;
 
 public sealed class ScreenshotService
 {
+    private const int MaxCaptureDimension = 16384;
+    private const long MaxCapturePixels = 268_435_456;
+
     public CommandResult Capture(string outputPath, int? screenIndex, nint windowHandle)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? Environment.CurrentDirectory);
 
         if (windowHandle != 0)
         {
+            if (!NativeMethods.IsWindow(windowHandle))
+            {
+                return CommandResult.Error($"Invalid or destroyed window handle: 0x{windowHandle.ToInt64():X}.");
+            }
+
             if (!NativeMethods.GetWindowRect(windowHandle, out var rect))
             {
                 return CommandResult.Error($"Could not read bounds for 0x{windowHandle.ToInt64():X}.");
@@ -46,6 +54,16 @@ public sealed class ScreenshotService
         if (width <= 0 || height <= 0)
         {
             throw new InvalidOperationException($"Cannot capture an empty area ({width}x{height}).");
+        }
+
+        if (width > MaxCaptureDimension || height > MaxCaptureDimension)
+        {
+            throw new InvalidOperationException($"Cannot capture an area larger than {MaxCaptureDimension} pixels on either side ({width}x{height}).");
+        }
+
+        if ((long)width * height > MaxCapturePixels)
+        {
+            throw new InvalidOperationException($"Cannot capture an area larger than {MaxCapturePixels:N0} pixels ({width}x{height}).");
         }
 
         using var bitmap = new Bitmap(width, height);
