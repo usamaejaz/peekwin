@@ -8,16 +8,24 @@ public sealed class InputService
 {
     public void Click(int x, int y, MouseButton button, bool isDouble)
     {
-        MoveCursor(x, y);
+        MoveMouse(x, y);
         var count = isDouble ? 2 : 1;
         for (var i = 0; i < count; i++)
         {
-            SendMouse(button, true);
-            SendMouse(button, false);
+            MouseDown(button);
+            MouseUp(button);
             if (isDouble && i == 0)
             {
                 Thread.Sleep(60);
             }
+        }
+    }
+
+    public void MoveMouse(int x, int y)
+    {
+        if (!NativeMethods.SetCursorPos(x, y))
+        {
+            throw new InvalidOperationException($"Failed to move cursor to {x},{y}.");
         }
     }
 
@@ -95,17 +103,29 @@ public sealed class InputService
 
     public void HoldMouse(MouseButton button, int durationMs)
     {
-        SendMouse(button, true);
+        MouseDown(button);
         Thread.Sleep(durationMs);
-        SendMouse(button, false);
+        MouseUp(button);
     }
 
-    private static void MoveCursor(int x, int y)
+    public void MouseDown(MouseButton button, int? x = null, int? y = null)
     {
-        if (!NativeMethods.SetCursorPos(x, y))
+        if (x is not null && y is not null)
         {
-            throw new InvalidOperationException($"Failed to move cursor to {x},{y}.");
+            MoveMouse(x.Value, y.Value);
         }
+
+        SendMouse(button, true);
+    }
+
+    public void MouseUp(MouseButton button, int? x = null, int? y = null)
+    {
+        if (x is not null && y is not null)
+        {
+            MoveMouse(x.Value, y.Value);
+        }
+
+        SendMouse(button, false);
     }
 
     private static void SendMouse(MouseButton button, bool down)
@@ -175,14 +195,22 @@ internal static class VirtualKeyParser
         ["tab"] = 0x09,
         ["enter"] = 0x0D,
         ["shift"] = 0x10,
+        ["lshift"] = 0xA0,
+        ["rshift"] = 0xA1,
         ["ctrl"] = 0x11,
         ["control"] = 0x11,
+        ["lctrl"] = 0xA2,
+        ["rctrl"] = 0xA3,
         ["alt"] = 0x12,
+        ["lalt"] = 0xA4,
+        ["ralt"] = 0xA5,
         ["pause"] = 0x13,
         ["capslock"] = 0x14,
         ["esc"] = 0x1B,
         ["escape"] = 0x1B,
         ["space"] = 0x20,
+        ["printscreen"] = 0x2C,
+        ["prtsc"] = 0x2C,
         ["pageup"] = 0x21,
         ["pagedown"] = 0x22,
         ["end"] = 0x23,
@@ -193,6 +221,8 @@ internal static class VirtualKeyParser
         ["down"] = 0x28,
         ["insert"] = 0x2D,
         ["delete"] = 0x2E,
+        ["numlock"] = 0x90,
+        ["scrolllock"] = 0x91,
         ["lwin"] = 0x5B,
         ["rwin"] = 0x5C,
         ["apps"] = 0x5D,
@@ -207,7 +237,18 @@ internal static class VirtualKeyParser
         ["f9"] = 0x78,
         ["f10"] = 0x79,
         ["f11"] = 0x7A,
-        ["f12"] = 0x7B
+        ["f12"] = 0x7B,
+        ["semicolon"] = 0xBA,
+        ["plus"] = 0xBB,
+        ["comma"] = 0xBC,
+        ["minus"] = 0xBD,
+        ["period"] = 0xBE,
+        ["slash"] = 0xBF,
+        ["backtick"] = 0xC0,
+        ["lbracket"] = 0xDB,
+        ["backslash"] = 0xDC,
+        ["rbracket"] = 0xDD,
+        ["quote"] = 0xDE
     };
 
     public static ushort Parse(string key)

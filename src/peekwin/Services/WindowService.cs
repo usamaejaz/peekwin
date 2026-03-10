@@ -1,5 +1,4 @@
 using System.Text;
-using System.Windows.Automation;
 using PeekWin.Infrastructure;
 using PeekWin.Models;
 
@@ -67,28 +66,14 @@ public sealed class WindowService
 
     public WindowInspection InspectWindow(nint hwnd)
     {
-        NativeMethods.GetWindowRect(hwnd, out var rect);
+        if (hwnd == 0 || !NativeMethods.GetWindowRect(hwnd, out var rect))
+        {
+            throw new InvalidOperationException($"Could not inspect window 0x{hwnd.ToInt64():X}.");
+        }
+
         NativeMethods.GetWindowThreadProcessId(hwnd, out var processId);
 
-        var elements = new List<AutomationElementInfo>();
-        try
-        {
-            var root = AutomationElement.FromHandle(hwnd);
-            var children = root.FindAll(TreeScope.Children, Condition.TrueCondition);
-            foreach (AutomationElement child in children)
-            {
-                var bounds = child.Current.BoundingRectangle;
-                elements.Add(new AutomationElementInfo(
-                    child.Current.Name ?? string.Empty,
-                    child.Current.AutomationId ?? string.Empty,
-                    child.Current.ControlType?.ProgrammaticName ?? string.Empty,
-                    new RectDto((int)bounds.Left, (int)bounds.Top, (int)bounds.Width, (int)bounds.Height)));
-            }
-        }
-        catch
-        {
-            // Best-effort inspection. Window metadata still returns even if UIA is unavailable.
-        }
+        var elements = UiAutomationHelper.GetTopLevelChildren(hwnd);
 
         return new WindowInspection(
             hwnd.ToInt64(),

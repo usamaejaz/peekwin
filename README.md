@@ -12,6 +12,9 @@ Implemented command surface:
 - `window focus`
 - `window inspect`
 - `click`
+- `mouse move`
+- `mouse down`
+- `mouse up`
 - `type`
 - `press`
 - `hotkey`
@@ -29,13 +32,15 @@ Implemented command surface:
 
 ## Build
 
-Windows only:
+The CLI is Windows-only at runtime, but it can be built from a Linux host with the .NET 8 SDK installed.
+
+Build on Windows:
 
 ```powershell
 dotnet build -c Release
 ```
 
-Run locally:
+Run locally on Windows:
 
 ```powershell
 dotnet run --project .\src\peekwin -- window list
@@ -91,7 +96,7 @@ peekwin window inspect --handle 0x001F09A2
 peekwin window inspect --handle 0x001F09A2 --json
 ```
 
-Inspection returns top-level metadata and best-effort UI Automation children.
+Inspection returns top-level metadata plus best-effort UI Automation child elements.
 
 ### Click by coordinates
 
@@ -101,14 +106,32 @@ peekwin click --x 900 --y 540 --button right
 peekwin click --x 900 --y 540 --double
 ```
 
+### Mouse primitives
+
+Move only:
+
+```powershell
+peekwin mouse move --x 900 --y 540
+```
+
+Press and release explicitly:
+
+```powershell
+peekwin mouse down --button left --x 900 --y 540
+peekwin mouse up --button left --x 1200 --y 700
+```
+
+Those primitives are the intended basis for drag composition: move to a start point, press `mouse down`, move again, then `mouse up`.
+
 ### Type text
 
 ```powershell
 peekwin type --text "hello world"
 peekwin type --text "slow typing" --delay-ms 45
+peekwin type --text "steady typing" --speed 12
 ```
 
-Typing uses Unicode keyboard injection through `SendInput`.
+Typing uses Unicode keyboard injection through `SendInput`. `--speed` is characters per second and is converted internally into an inter-character delay. Use either `--delay-ms` or `--speed`, not both.
 
 ### Press a key
 
@@ -139,7 +162,7 @@ peekwin hold mouse --button left --duration-ms 1200
 peekwin hold mouse --button right --duration-ms 800
 ```
 
-This is the primitive you can combine with cursor movement to emulate drag operations later.
+`hold mouse` is useful when you want a timed press. For composed flows such as drag, prefer `mouse down` + `mouse move` + `mouse up`.
 
 ### Screenshot
 
@@ -182,10 +205,11 @@ Models/
 
 ### Notes
 
-- `WindowService` handles enumeration, focus, metadata, and best-effort UI inspection.
+- `WindowService` handles enumeration, focus, metadata inspection, and best-effort UI Automation child enumeration.
 - `InputService` wraps `SendInput` and cursor positioning.
 - `ScreenshotService` captures the full virtual desktop, a specific monitor, or a window rectangle.
 - `VirtualDesktopHelper` only exposes what Windows safely gives us right now: whether a window appears to belong to the current desktop. This is enough for listing and caveats, not full desktop orchestration.
+- `ScreenshotService` uses Win32 monitor enumeration and screen copying, so it can build from a Linux host without depending on WindowsDesktop SDK targets.
 
 ## Virtual desktop support
 
@@ -196,6 +220,7 @@ What peekwin currently does:
 - detects whether a window is on the current desktop, another desktop, or unknown
 - includes that status in `window list` and `window inspect`
 - captures the full virtual screen across multiple monitors
+- allows focus attempts by handle or title, with the usual Windows foreground restrictions still applying
 
 What peekwin does **not** do yet:
 
@@ -211,21 +236,11 @@ That means the project is multiple-desktop aware, but not yet a full virtual des
 - Windows only
 - elevated apps may require peekwin itself to run elevated
 - `window inspect` depends on what UI Automation exposes for that app
-- Electron, game, canvas, and custom-rendered UIs may expose weak automation trees
+- Electron, game, canvas, and custom-rendered UIs may expose weak automation trees and still need stronger inspection/OCR work later
 - screenshot capture uses screen copying, not advanced Windows Graphics Capture yet
 - window focusing is still subject to Windows foreground rules
-
-## Roadmap
-
-Next sensible steps:
-
-1. Better argument parsing with completions and validation
-2. Add `mousemove` and `mouseup`/`mousedown` split commands explicitly
-3. Richer UI Automation inspection tree depth controls
-4. Stable refs for inspected elements
-5. Optional OCR and vision-backed fallback
-6. Optional MCP server wrapping the same services
-7. Stronger virtual desktop support where Windows APIs allow it
+- a window on another virtual desktop may enumerate as `other`, but Windows may still block bringing it foreground without switching desktops manually first
+- the Linux host can build the project, but runtime behavior was not smoke-tested here because the binary still exits immediately outside Windows
 
 ## Safety note
 

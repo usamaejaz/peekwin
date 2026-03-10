@@ -18,6 +18,10 @@ internal static class NativeMethods
     internal const uint MOUSEEVENTF_ABSOLUTE = 0x8000;
     internal const int SRCCOPY = 0x00CC0020;
     internal const uint MAPVK_VK_TO_VSC = 0;
+    internal const int SM_XVIRTUALSCREEN = 76;
+    internal const int SM_YVIRTUALSCREEN = 77;
+    internal const int SM_CXVIRTUALSCREEN = 78;
+    internal const int SM_CYVIRTUALSCREEN = 79;
 
     [DllImport("user32.dll")]
     internal static extern bool EnumWindows(EnumWindowsProc callback, nint lParam);
@@ -74,6 +78,12 @@ internal static class NativeMethods
     internal static extern int GetSystemMetrics(int nIndex);
 
     [DllImport("user32.dll")]
+    internal static extern bool EnumDisplayMonitors(nint hdc, nint lprcClip, MonitorEnumProc callback, nint dwData);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    internal static extern bool GetMonitorInfo(nint hMonitor, ref MONITORINFOEX monitorInfo);
+
+    [DllImport("user32.dll")]
     internal static extern nint GetDC(nint hWnd);
 
     [DllImport("user32.dll")]
@@ -98,6 +108,7 @@ internal static class NativeMethods
     internal static extern bool DeleteObject(nint ho);
 
     internal delegate bool EnumWindowsProc(nint hWnd, nint lParam);
+    internal delegate bool MonitorEnumProc(nint hMonitor, nint hdcMonitor, ref RECT monitorRect, nint dwData);
 
     [StructLayout(LayoutKind.Sequential)]
     internal struct RECT
@@ -106,6 +117,18 @@ internal static class NativeMethods
         public int Top;
         public int Right;
         public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    internal struct MONITORINFOEX
+    {
+        public int cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
+        public string szDevice;
     }
 
     [StructLayout(LayoutKind.Sequential)]

@@ -8,6 +8,7 @@ internal static class VirtualDesktopHelper
 
     internal static string GetDesktopLabel(nint hwnd)
     {
+        object? manager = null;
         try
         {
             var type = Type.GetTypeFromCLSID(ClsidVirtualDesktopManager);
@@ -16,13 +17,30 @@ internal static class VirtualDesktopHelper
                 return "unknown";
             }
 
-            var manager = (IVirtualDesktopManager)Activator.CreateInstance(type)!;
-            var onCurrentDesktop = manager.IsWindowOnCurrentVirtualDesktop(hwnd, out var isCurrent) == 0 && isCurrent;
-            return onCurrentDesktop ? "current" : "other";
+            manager = Activator.CreateInstance(type);
+            if (manager is not IVirtualDesktopManager desktopManager)
+            {
+                return "unknown";
+            }
+
+            var result = desktopManager.IsWindowOnCurrentVirtualDesktop(hwnd, out var isCurrent);
+            if (result != 0)
+            {
+                return "unknown";
+            }
+
+            return isCurrent ? "current" : "other";
         }
         catch
         {
             return "unknown";
+        }
+        finally
+        {
+            if (manager is not null && Marshal.IsComObject(manager))
+            {
+                Marshal.FinalReleaseComObject(manager);
+            }
         }
     }
 
