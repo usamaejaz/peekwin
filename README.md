@@ -52,6 +52,29 @@ Publish a single-file build if you want:
 dotnet publish .\src\peekwin.csproj -c Release -r win-x64 --self-contained false
 ```
 
+## Releases
+
+GitHub release publishing is automated for pushed version tags that match `v*`.
+
+Tag format:
+
+- `v1.0.0`
+- `v1.2.3`
+
+Push a tag like this to trigger the release workflow:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+Produced release assets:
+
+- `peekwin-<tag>-win-x64.zip`
+- `peekwin-<tag>-win-arm64.zip`
+
+Each archive contains a self-contained Windows build of `peekwin`, so the target machine does not need a separate .NET runtime installation.
+
 ## Usage
 
 ### List windows
