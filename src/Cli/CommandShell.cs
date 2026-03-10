@@ -11,7 +11,6 @@ public sealed class CommandShell
     private readonly WindowService _windowService;
     private readonly InputService _inputService;
     private readonly ScreenshotService _screenshotService;
-    private bool _verbose;
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     public CommandShell(WindowService windowService, InputService inputService, ScreenshotService screenshotService)
@@ -23,7 +22,8 @@ public sealed class CommandShell
 
     public async Task<int> RunAsync(string[] args)
     {
-        args = ExtractGlobalFlags(args);
+        var (filteredArgs, verbose) = ExtractGlobalFlags(args);
+        args = filteredArgs;
 
         if (args.Length == 0)
         {
@@ -51,7 +51,7 @@ public sealed class CommandShell
         catch (Exception ex)
         {
             Console.Error.WriteLine(ex.Message);
-            if (_verbose)
+            if (verbose)
             {
                 Console.Error.WriteLine(ex);
             }
@@ -495,27 +495,31 @@ public sealed class CommandShell
         _ => throw new InvalidOperationException($"Unsupported mouse button: {value}")
     };
 
-    private string[] ExtractGlobalFlags(string[] args)
+    private static (string[] Args, bool Verbose) ExtractGlobalFlags(string[] args)
     {
         if (args.Length == 0)
         {
-            return args;
+            return (args, false);
         }
 
-        var filtered = new List<string>(args.Length);
-        foreach (var arg in args)
+        var index = 0;
+        var verbose = false;
+
+        while (index < args.Length)
         {
+            var arg = args[index];
             if (arg.Equals("--verbose", StringComparison.OrdinalIgnoreCase)
                 || arg.Equals("-v", StringComparison.OrdinalIgnoreCase))
             {
-                _verbose = true;
+                verbose = true;
+                index++;
                 continue;
             }
 
-            filtered.Add(arg);
+            break;
         }
 
-        return filtered.ToArray();
+        return (args[index..], verbose);
     }
 
     private bool TryParseOptions(IReadOnlyList<string> args, out OptionSet options)
