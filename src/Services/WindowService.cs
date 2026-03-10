@@ -40,12 +40,13 @@ public sealed class WindowService
 
     public CommandResult FocusWindow(nint hwnd)
     {
-        if (hwnd == 0)
+        if (hwnd == 0 || !NativeMethods.IsWindow(hwnd))
         {
-            return CommandResult.Error("Invalid window handle.");
+            return CommandResult.Error($"Invalid or destroyed window handle: 0x{hwnd.ToInt64():X}.");
         }
 
-        if (NativeMethods.IsIconic(hwnd))
+        var wasMinimized = NativeMethods.IsIconic(hwnd);
+        if (wasMinimized)
         {
             NativeMethods.ShowWindow(hwnd, NativeMethods.SW_RESTORE);
         }
@@ -53,7 +54,7 @@ public sealed class WindowService
         var success = NativeMethods.BringWindowToTop(hwnd) && NativeMethods.SetForegroundWindow(hwnd);
         return success
             ? CommandResult.Ok($"Focused window 0x{hwnd.ToInt64():X}.")
-            : CommandResult.Error($"Failed to focus window 0x{hwnd.ToInt64():X}.");
+            : CommandResult.Error($"Failed to focus window 0x{hwnd.ToInt64():X} ({DescribeWindowState(hwnd)}). Windows may block foreground activation.");
     }
 
     public CommandResult FocusWindowByTitle(string title)
@@ -64,9 +65,17 @@ public sealed class WindowService
             : FocusWindow((nint)match.Handle);
     }
 
+    public WindowInspection InspectWindowByTitle(string title)
+    {
+        var match = ListWindows().FirstOrDefault(w => w.Title.Contains(title, StringComparison.OrdinalIgnoreCase));
+        return match is null
+            ? throw new InvalidOperationException($"No window matched title: {title}")
+            : InspectWindow((nint)match.Handle);
+    }
+
     public WindowInspection InspectWindow(nint hwnd)
     {
-        if (hwnd == 0 || !NativeMethods.GetWindowRect(hwnd, out var rect))
+        if (hwnd == 0 || !NativeMethods.IsWindow(hwnd) || !NativeMethods.GetWindowRect(hwnd, out var rect))
         {
             throw new InvalidOperationException($"Could not inspect window 0x{hwnd.ToInt64():X}.");
         }
@@ -110,4 +119,16 @@ public sealed class WindowService
 
     private static RectDto ToRectDto(NativeMethods.RECT rect)
         => new(rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top);
+
+    private static string DescribeWindowState(nint hwnd)
+    {
+        var visibility = NativeMethods.IsWindowVisible(hwnd) ? "visible" : "hidden";
+        var sizeState = NativeMethods.IsIconic(hwnd)
+            ? "minimized"
+            : NativeMethods.IsZoomed(hwnd)
+                ? "maximized"
+                : "normal";
+
+        return $"{visibility}, {sizeState}";
+    }
 }

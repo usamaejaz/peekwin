@@ -36,6 +36,9 @@ internal static class NativeMethods
     internal static extern int GetClassNameW(nint hWnd, StringBuilder className, int maxCount);
 
     [DllImport("user32.dll")]
+    internal static extern bool IsWindow(nint hWnd);
+
+    [DllImport("user32.dll")]
     internal static extern bool IsWindowVisible(nint hWnd);
 
     [DllImport("user32.dll")]

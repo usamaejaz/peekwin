@@ -22,6 +22,9 @@ public sealed class CommandShell
 
     public async Task<int> RunAsync(string[] args)
     {
+        var (filteredArgs, verbose) = ExtractGlobalFlags(args);
+        args = filteredArgs;
+
         if (args.Length == 0)
         {
             PrintHelp();
@@ -35,19 +38,24 @@ public sealed class CommandShell
                 "help" or "--help" or "-h" => HelpAndSuccess(),
                 "version" => VersionAndSuccess(),
                 "window" => await HandleWindowAsync(args[1..]),
-                "click" => HandleClick(args[1..]),
+                "click" => await HandleClickAsync(args[1..]),
                 "mouse" => HandleMouse(args[1..]),
-                "type" => HandleType(args[1..]),
+                "type" => await HandleTypeAsync(args[1..]),
                 "press" => HandlePress(args[1..]),
                 "hotkey" => HandleHotkey(args[1..]),
-                "hold" => HandleHold(args[1..]),
-                "screenshot" => HandleScreenshot(args[1..]),
+                "hold" => await HandleHoldAsync(args[1..]),
+                "screenshot" => HandleScreenshotCommand(args[1..]),
                 _ => Fail($"Unknown command: {args[0]}")
             };
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine(ex.Message);
+            if (verbose)
+            {
+                Console.Error.WriteLine(ex);
+            }
+
             return 1;
         }
     }
@@ -109,12 +117,20 @@ public sealed class CommandShell
     {
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin window list [--json]");
+            Console.WriteLine("Usage: peekwin window list [--all] [--json]");
             return 0;
         }
 
-        var options = OptionSet.Parse(args);
+        if (!TryParseOptions(args, out var options))
+        {
+            return 1;
+        }
+
         var windows = _windowService.ListWindows();
+        if (!options.HasFlag("all"))
+        {
+            windows = windows.Where(window => window.IsVisible).ToList();
+        }
 
         if (options.HasFlag("json"))
         {
@@ -138,7 +154,11 @@ public sealed class CommandShell
             return 0;
         }
 
-        var options = OptionSet.Parse(args);
+        if (!TryParseOptions(args, out var options))
+        {
+            return 1;
+        }
+
         nint handle = options.TryGetHandle("handle");
         string? title = options.GetValueOrDefault("title");
 
@@ -159,18 +179,25 @@ public sealed class CommandShell
     {
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin window inspect --handle <HWND> [--json]");
+            Console.WriteLine("Usage: peekwin window inspect (--handle <HWND> | --title <text>) [--json]");
             return 0;
         }
 
-        var options = OptionSet.Parse(args);
-        var handle = options.TryGetHandle("handle");
-        if (handle == 0)
+        if (!TryParseOptions(args, out var options))
         {
-            return Fail("window inspect requires --handle.");
+            return 1;
         }
 
-        var inspection = _windowService.InspectWindow(handle);
+        var handle = options.TryGetHandle("handle");
+        var title = options.GetValueOrDefault("title");
+        if ((handle == 0 && string.IsNullOrWhiteSpace(title)) || (handle != 0 && !string.IsNullOrWhiteSpace(title)))
+        {
+            return Fail("window inspect requires exactly one of --handle or --title.");
+        }
+
+        var inspection = handle != 0
+            ? _windowService.InspectWindow(handle)
+            : _windowService.InspectWindowByTitle(title!);
         if (options.HasFlag("json"))
         {
             Console.WriteLine(JsonSerializer.Serialize(inspection, JsonOptions));
@@ -195,7 +222,7 @@ public sealed class CommandShell
         return 0;
     }
 
-    private int HandleClick(string[] args)
+    private async Task<int> HandleClickAsync(string[] args)
     {
         if (IsHelpRequest(args))
         {
@@ -203,13 +230,17 @@ public sealed class CommandShell
             return 0;
         }
 
-        var options = OptionSet.Parse(args);
+        if (!TryParseOptions(args, out var options))
+        {
+            return 1;
+        }
+
         int x = options.GetInt("x") ?? throw new InvalidOperationException("click requires --x.");
         int y = options.GetInt("y") ?? throw new InvalidOperationException("click requires --y.");
         var button = ParseMouseButton(options.GetValueOrDefault("button") ?? "left");
         bool isDouble = options.HasFlag("double");
 
-        _inputService.Click(x, y, button, isDouble);
+        await _inputService.ClickAsync(x, y, button, isDouble);
         WriteResult(CommandResult.Ok($"Clicked {button} at {x},{y}."), options.HasFlag("json"));
         return 0;
     }
@@ -239,7 +270,11 @@ public sealed class CommandShell
             return 0;
         }
 
-        var options = OptionSet.Parse(args);
+        if (!TryParseOptions(args, out var options))
+        {
+            return 1;
+        }
+
         int x = options.GetInt("x") ?? throw new InvalidOperationException("mouse move requires --x.");
         int y = options.GetInt("y") ?? throw new InvalidOperationException("mouse move requires --y.");
 
@@ -256,7 +291,11 @@ public sealed class CommandShell
             return 0;
         }
 
-        var options = OptionSet.Parse(args);
+        if (!TryParseOptions(args, out var options))
+        {
+            return 1;
+        }
+
         int? x = options.GetInt("x");
         int? y = options.GetInt("y");
         if ((x is null) != (y is null))
@@ -278,7 +317,11 @@ public sealed class CommandShell
             return 0;
         }
 
-        var options = OptionSet.Parse(args);
+        if (!TryParseOptions(args, out var options))
+        {
+            return 1;
+        }
+
         int? x = options.GetInt("x");
         int? y = options.GetInt("y");
         if ((x is null) != (y is null))
@@ -292,7 +335,7 @@ public sealed class CommandShell
         return 0;
     }
 
-    private int HandleType(string[] args)
+    private async Task<int> HandleTypeAsync(string[] args)
     {
         if (IsHelpRequest(args))
         {
@@ -300,7 +343,11 @@ public sealed class CommandShell
             return 0;
         }
 
-        var options = OptionSet.Parse(args);
+        if (!TryParseOptions(args, out var options))
+        {
+            return 1;
+        }
+
         string text = options.GetValueOrDefault("text") ?? throw new InvalidOperationException("type requires --text.");
         int? delayMs = options.GetInt("delay-ms");
         int? speed = options.GetInt("speed") ?? options.GetInt("speed-cps");
@@ -310,7 +357,7 @@ public sealed class CommandShell
         }
 
         var resolvedDelayMs = delayMs ?? ResolveDelayFromSpeed(speed);
-        _inputService.TypeText(text, resolvedDelayMs);
+        await _inputService.TypeTextAsync(text, resolvedDelayMs);
         WriteResult(CommandResult.Ok($"Typed {text.Length} characters."), options.HasFlag("json"));
         return 0;
     }
@@ -323,7 +370,11 @@ public sealed class CommandShell
             return 0;
         }
 
-        var options = OptionSet.Parse(args);
+        if (!TryParseOptions(args, out var options))
+        {
+            return 1;
+        }
+
         string key = options.GetValueOrDefault("key") ?? throw new InvalidOperationException("press requires --key.");
         int repeat = options.GetInt("repeat") ?? 1;
         if (repeat <= 0)
@@ -344,14 +395,18 @@ public sealed class CommandShell
             return 0;
         }
 
-        var options = OptionSet.Parse(args);
+        if (!TryParseOptions(args, out var options))
+        {
+            return 1;
+        }
+
         string keys = options.GetValueOrDefault("keys") ?? throw new InvalidOperationException("hotkey requires --keys.");
         _inputService.Hotkey(keys.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
         WriteResult(CommandResult.Ok($"Sent hotkey {keys}."), options.HasFlag("json"));
         return 0;
     }
 
-    private int HandleHold(string[] args)
+    private async Task<int> HandleHoldAsync(string[] args)
     {
         if (IsHelpRequest(args))
         {
@@ -364,7 +419,11 @@ public sealed class CommandShell
             return Fail("hold requires a target: key or mouse.");
         }
 
-        var options = OptionSet.Parse(args[1..]);
+        if (!TryParseOptions(args[1..], out var options))
+        {
+            return 1;
+        }
+
         int durationMs = options.GetInt("duration-ms") ?? 1000;
         if (durationMs <= 0)
         {
@@ -377,17 +436,37 @@ public sealed class CommandShell
         {
             case "key":
                 string key = options.GetValueOrDefault("key") ?? throw new InvalidOperationException("hold key requires --key.");
-                _inputService.HoldKey(key, durationMs);
+                await _inputService.HoldKeyAsync(key, durationMs);
                 WriteResult(CommandResult.Ok($"Held {key} for {durationMs}ms."), json);
                 return 0;
             case "mouse":
                 var button = ParseMouseButton(options.GetValueOrDefault("button") ?? "left");
-                _inputService.HoldMouse(button, durationMs);
+                await _inputService.HoldMouseAsync(button, durationMs);
                 WriteResult(CommandResult.Ok($"Held {button} mouse button for {durationMs}ms."), json);
                 return 0;
             default:
                 return Fail($"Unknown hold target: {args[0]}");
         }
+    }
+
+    private int HandleScreenshotCommand(string[] args)
+    {
+        if (IsHelpRequest(args))
+        {
+            PrintScreenshotHelp();
+            return 0;
+        }
+
+        if (args.Length > 0 && !args[0].StartsWith("--", StringComparison.Ordinal))
+        {
+            return args[0].ToLowerInvariant() switch
+            {
+                "info" => HandleScreenshotInfo(args[1..]),
+                _ => Fail($"Unknown screenshot subcommand: {args[0]}")
+            };
+        }
+
+        return HandleScreenshot(args);
     }
 
     private int HandleScreenshot(string[] args)
@@ -398,7 +477,11 @@ public sealed class CommandShell
             return 0;
         }
 
-        var options = OptionSet.Parse(args);
+        if (!TryParseOptions(args, out var options))
+        {
+            return 1;
+        }
+
         string output = options.GetValueOrDefault("output") ?? Path.Combine(Environment.CurrentDirectory, $"peekwin-{DateTime.UtcNow:yyyyMMddHHmmss}.png");
         int? screenIndex = options.GetInt("screen");
         nint windowHandle = options.TryGetHandle("window");
@@ -410,6 +493,37 @@ public sealed class CommandShell
         var result = _screenshotService.Capture(output, screenIndex, windowHandle);
         WriteResult(result, options.HasFlag("json"));
         return result.Success ? 0 : 1;
+    }
+
+    private int HandleScreenshotInfo(string[] args)
+    {
+        if (IsHelpRequest(args))
+        {
+            Console.WriteLine("Usage: peekwin screenshot info [--json]");
+            return 0;
+        }
+
+        if (!TryParseOptions(args, out var options))
+        {
+            return 1;
+        }
+
+        var info = _screenshotService.GetScreenshotInfo();
+        if (options.HasFlag("json"))
+        {
+            Console.WriteLine(JsonSerializer.Serialize(info, JsonOptions));
+            return 0;
+        }
+
+        Console.WriteLine($"Default capture target: {info.DefaultCaptureTarget}");
+        Console.WriteLine($"Virtual desktop: {FormatRect(info.VirtualBounds)}");
+        Console.WriteLine($"Screens: {info.Screens.Count}");
+        foreach (var screen in info.Screens)
+        {
+            Console.WriteLine($"- Screen {screen.Index}: {FormatRect(screen.Bounds)}");
+        }
+
+        return 0;
     }
 
     private static bool IsHelpRequest(IReadOnlyList<string> args)
@@ -439,6 +553,50 @@ public sealed class CommandShell
         _ => throw new InvalidOperationException($"Unsupported mouse button: {value}")
     };
 
+    private static string FormatRect(RectDto rect)
+        => $"{rect.Left},{rect.Top} {rect.Width}x{rect.Height}";
+
+    private static (string[] Args, bool Verbose) ExtractGlobalFlags(string[] args)
+    {
+        if (args.Length == 0)
+        {
+            return (args, false);
+        }
+
+        var index = 0;
+        var verbose = false;
+
+        while (index < args.Length)
+        {
+            var arg = args[index];
+            if (arg.Equals("--verbose", StringComparison.OrdinalIgnoreCase)
+                || arg.Equals("-v", StringComparison.OrdinalIgnoreCase))
+            {
+                verbose = true;
+                index++;
+                continue;
+            }
+
+            break;
+        }
+
+        return (args[index..], verbose);
+    }
+
+    private bool TryParseOptions(IReadOnlyList<string> args, out OptionSet options)
+    {
+        try
+        {
+            options = OptionSet.Parse(args);
+            return true;
+        }
+        catch (InvalidOperationException ex)
+        {
+            options = null!;
+            return Fail($"Invalid arguments: {ex.Message}") == 0;
+        }
+    }
+
     private static void WriteResult(CommandResult result, bool asJson)
     {
         if (asJson)
@@ -462,9 +620,9 @@ public sealed class CommandShell
         Console.WriteLine();
         Console.WriteLine("Commands:");
         Console.WriteLine("  peekwin version");
-        Console.WriteLine("  peekwin window list [--json]");
+        Console.WriteLine("  peekwin window list [--all] [--json]");
         Console.WriteLine("  peekwin window focus --handle <HWND>|--title <text> [--json]");
-        Console.WriteLine("  peekwin window inspect --handle <HWND> [--json]");
+        Console.WriteLine("  peekwin window inspect --handle <HWND>|--title <text> [--json]");
         Console.WriteLine("  peekwin click --x <n> --y <n> [--button left|right] [--double] [--json]");
         Console.WriteLine("  peekwin mouse move --x <n> --y <n> [--json]");
         Console.WriteLine("  peekwin mouse down [--button left|right] [--x <n> --y <n>] [--json]");
@@ -475,6 +633,10 @@ public sealed class CommandShell
         Console.WriteLine("  peekwin hold key --key <name> [--duration-ms <n>] [--json]");
         Console.WriteLine("  peekwin hold mouse --button left|right [--duration-ms <n>] [--json]");
         Console.WriteLine("  peekwin screenshot [--screen <n>|--window <HWND>] [--output <path>] [--json]");
+        Console.WriteLine("  peekwin screenshot info [--json]");
+        Console.WriteLine();
+        Console.WriteLine("Global flags:");
+        Console.WriteLine("  --verbose, -v    Print exception details for troubleshooting");
         Console.WriteLine();
         Console.WriteLine("Use 'peekwin <command> --help' for command-specific help.");
     }
@@ -482,9 +644,9 @@ public sealed class CommandShell
     private static void PrintWindowHelp()
     {
         Console.WriteLine("Window commands:");
-        Console.WriteLine("  peekwin window list [--json]");
+        Console.WriteLine("  peekwin window list [--all] [--json]");
         Console.WriteLine("  peekwin window focus (--handle <HWND> | --title <text>) [--json]");
-        Console.WriteLine("  peekwin window inspect --handle <HWND> [--json]");
+        Console.WriteLine("  peekwin window inspect (--handle <HWND> | --title <text>) [--json]");
     }
 
     private static void PrintMouseHelp()
@@ -500,6 +662,13 @@ public sealed class CommandShell
         Console.WriteLine("Hold commands:");
         Console.WriteLine("  peekwin hold key --key <name> [--duration-ms <n>] [--json]");
         Console.WriteLine("  peekwin hold mouse --button left|right [--duration-ms <n>] [--json]");
+    }
+
+    private static void PrintScreenshotHelp()
+    {
+        Console.WriteLine("Screenshot commands:");
+        Console.WriteLine("  peekwin screenshot [--screen <n>|--window <HWND>] [--output <path>] [--json]");
+        Console.WriteLine("  peekwin screenshot info [--json]");
     }
 }
 
