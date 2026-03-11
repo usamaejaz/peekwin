@@ -58,30 +58,25 @@ public sealed class WindowService
     }
 
     public WindowInfo? FindWindowByTitle(string title)
-        => ListWindows()
-            .Where(window => window.Title.Contains(title, StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(window => window.IsVisible)
-            .ThenBy(window => window.Title, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(window => window.Handle, StringComparer.OrdinalIgnoreCase)
-            .FirstOrDefault();
+        => FindWindowMatch(title, null);
 
     public WindowInfo? FindWindowByApp(string appName)
-        => ListWindows()
-            .Where(window => window.ProcessName.Contains(appName, StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(window => window.IsVisible)
-            .ThenBy(window => window.Title, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(window => window.Handle, StringComparer.OrdinalIgnoreCase)
-            .FirstOrDefault();
+        => FindWindowMatch(null, appName);
 
+    public WindowInfo? FindWindowMatch(string? title, string? appName)
+        => RankWindowMatches(ListWindows()
+            .Where(window => MatchesWindowFilter(window, title, appName)))
+            .FirstOrDefault();
 
     public WindowInfo? FindCapturableWindowByTitle(string title)
-        => RankWindowMatchesForCapture(ListWindows()
-            .Where(window => window.Title.Contains(title, StringComparison.OrdinalIgnoreCase)))
-            .FirstOrDefault();
+        => FindCapturableWindowMatch(title, null);
 
     public WindowInfo? FindCapturableWindowByApp(string appName)
+        => FindCapturableWindowMatch(null, appName);
+
+    public WindowInfo? FindCapturableWindowMatch(string? title, string? appName)
         => RankWindowMatchesForCapture(ListWindows()
-            .Where(window => window.ProcessName.Contains(appName, StringComparison.OrdinalIgnoreCase)))
+            .Where(window => MatchesWindowFilter(window, title, appName)))
             .FirstOrDefault();
 
     public CommandResult FocusWindow(nint hwnd)
@@ -289,6 +284,16 @@ public sealed class WindowService
 
     private static RectDto ToRectDto(NativeMethods.RECT rect)
         => new(rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top);
+
+    private static bool MatchesWindowFilter(WindowInfo window, string? title, string? appName)
+        => (string.IsNullOrWhiteSpace(title) || window.Title.Contains(title, StringComparison.OrdinalIgnoreCase))
+            && (string.IsNullOrWhiteSpace(appName) || window.ProcessName.Contains(appName, StringComparison.OrdinalIgnoreCase));
+
+    private static IOrderedEnumerable<WindowInfo> RankWindowMatches(IEnumerable<WindowInfo> windows)
+        => windows
+            .OrderByDescending(window => window.IsVisible)
+            .ThenBy(window => window.Title, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(window => window.Handle, StringComparer.OrdinalIgnoreCase);
 
     private static IOrderedEnumerable<WindowInfo> RankWindowMatchesForCapture(IEnumerable<WindowInfo> windows)
         => windows

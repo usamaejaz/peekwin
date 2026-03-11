@@ -1031,27 +1031,21 @@ public sealed class CommandShell
         => ResolveWindowTarget(
             command,
             target,
-            _windowService.FindWindowByTitle,
-            _windowService.FindWindowByApp,
-            titleErrorPrefix: "No window matched title: ",
-            appErrorPrefix: "No window matched app: ");
+            _windowService.FindWindowMatch,
+            errorPrefix: "No window matched");
 
     private ResolvedTarget? ResolveCaptureWindowTarget(string command, TargetSelector target)
         => ResolveWindowTarget(
             command,
             target,
-            _windowService.FindCapturableWindowByTitle,
-            _windowService.FindCapturableWindowByApp,
-            titleErrorPrefix: "No capturable window matched title: ",
-            appErrorPrefix: "No capturable window matched app: ");
+            _windowService.FindCapturableWindowMatch,
+            errorPrefix: "No capturable window matched");
 
     private ResolvedTarget? ResolveWindowTarget(
         string command,
         TargetSelector target,
-        Func<string, WindowInfo?> findByTitle,
-        Func<string, WindowInfo?> findByApp,
-        string titleErrorPrefix,
-        string appErrorPrefix)
+        Func<string?, string?, WindowInfo?> findWindow,
+        string errorPrefix)
     {
         WindowInfo? window = null;
         if (target.Handle != 0)
@@ -1062,26 +1056,33 @@ public sealed class CommandShell
                 throw new InvalidOperationException($"Invalid or destroyed window handle: 0x{target.Handle.ToInt64():X}.");
             }
         }
-        else if (!string.IsNullOrWhiteSpace(target.Title))
+        else if (!string.IsNullOrWhiteSpace(target.Title) || !string.IsNullOrWhiteSpace(target.App))
         {
-            window = findByTitle(target.Title);
+            window = findWindow(target.Title, target.App);
             if (window is null)
             {
-                throw new InvalidOperationException($"{titleErrorPrefix}{target.Title}");
-            }
-        }
-        else if (!string.IsNullOrWhiteSpace(target.App))
-        {
-            window = findByApp(target.App);
-            if (window is null)
-            {
-                throw new InvalidOperationException($"{appErrorPrefix}{target.App}");
+                throw new InvalidOperationException(BuildWindowMatchError(errorPrefix, target));
             }
         }
 
         return window is null
             ? null
             : new ResolvedTarget("window", window.Title, window.Bounds, ParseHandle(window.Handle), AppName: window.ProcessName);
+    }
+
+    private static string BuildWindowMatchError(string prefix, TargetSelector target)
+    {
+        if (!string.IsNullOrWhiteSpace(target.Title) && !string.IsNullOrWhiteSpace(target.App))
+        {
+            return $"{prefix} title '{target.Title}' in app '{target.App}'.";
+        }
+
+        if (!string.IsNullOrWhiteSpace(target.Title))
+        {
+            return $"{prefix} title: {target.Title}";
+        }
+
+        return $"{prefix} app: {target.App}";
     }
 
     private bool FocusTargetIfNeeded(string command, TargetSelector target, bool asJson)
