@@ -701,6 +701,8 @@ internal static class VirtualKeyParser
         ["decimal"] = 0x6E,
         ["divide"] = 0x6F,
         ["lwin"] = 0x5B,
+        ["win"] = 0x5B,
+        ["start"] = 0x5B,
         ["rwin"] = 0x5C,
         ["apps"] = 0x5D,
         ["f1"] = 0x70,
