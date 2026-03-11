@@ -10,12 +10,12 @@ internal static class UiAutomationHelper
     private static readonly Guid CUIAutomationClsid = new("FF48DBA4-60EF-4201-AA87-54103EEF594E");
 
     public static IReadOnlyList<AutomationElementInfo> GetTopLevelChildren(nint hwnd)
-        => GetTree(hwnd, maxDepth: 1)
+        => GetTree(hwnd, maxDepth: 1).Nodes
             .Where(node => node.Depth == 1)
             .Select(node => new AutomationElementInfo(node.Name, node.AutomationId, node.ControlType, node.Bounds))
             .ToList();
 
-    public static IReadOnlyList<AutomationTreeNode> GetTree(nint hwnd, int maxDepth)
+    public static AutomationTreeResult GetTree(nint hwnd, int maxDepth)
     {
         object? automationObject = null;
         IUIAutomation? automation = null;
@@ -27,34 +27,34 @@ internal static class UiAutomationHelper
             var type = Type.GetTypeFromCLSID(CUIAutomationClsid);
             if (type is null)
             {
-                return Array.Empty<AutomationTreeNode>();
+                return new AutomationTreeResult(false, Array.Empty<AutomationTreeNode>(), "UI Automation is unavailable on this system.");
             }
 
             automationObject = Activator.CreateInstance(type);
             automation = automationObject as IUIAutomation;
             if (automation is null)
             {
-                return Array.Empty<AutomationTreeNode>();
+                return new AutomationTreeResult(false, Array.Empty<AutomationTreeNode>(), "Failed to initialize UI Automation.");
             }
 
             if (automation.ElementFromHandle(hwnd, out root) != 0 || root is null)
             {
-                return Array.Empty<AutomationTreeNode>();
+                return new AutomationTreeResult(false, Array.Empty<AutomationTreeNode>(), $"Could not create a UI Automation root for window 0x{hwnd.ToInt64():X}.");
             }
 
             if (automation.CreateTrueCondition(out condition) != 0 || condition is null)
             {
-                return Array.Empty<AutomationTreeNode>();
+                return new AutomationTreeResult(false, Array.Empty<AutomationTreeNode>(), "Failed to create the UI Automation traversal condition.");
             }
 
             var nodes = new List<AutomationTreeNode>();
             var nextRef = 1;
             Traverse(root, condition, maxDepth, depth: 0, parentRef: null, nodes, ref nextRef);
-            return nodes;
+            return new AutomationTreeResult(true, nodes);
         }
         catch
         {
-            return Array.Empty<AutomationTreeNode>();
+            return new AutomationTreeResult(false, Array.Empty<AutomationTreeNode>(), "UI Automation traversal failed for the requested window.");
         }
         finally
         {

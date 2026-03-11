@@ -886,7 +886,13 @@ public sealed class CommandShell
         var maxDepth = ResolveSeeMaxDepth(options);
         var roleFilter = options.GetValueOrDefault("role");
         var nameFilter = options.GetValueOrDefault("name");
-        var tree = UiAutomationHelper.GetTree(resolvedTarget.WindowHandle!.Value, maxDepth);
+        var traversal = UiAutomationHelper.GetTree(resolvedTarget.WindowHandle!.Value, maxDepth);
+        if (!traversal.Success)
+        {
+            return Fail(command, traversal.Error ?? "UI Automation traversal failed.", options.HasFlag("json"));
+        }
+
+        var tree = traversal.Nodes;
         var elements = ApplySeeFilters(tree, roleFilter, nameFilter).ToList();
         var data = new
         {
@@ -1388,12 +1394,16 @@ public sealed class CommandShell
         }
 
         var window = _windowService.FindWindow(hwnd);
-        if (window is null)
+        if (window is not null)
         {
-            throw new InvalidOperationException($"Could not inspect the current foreground window 0x{hwnd.ToInt64():X}.");
+            return new ResolvedTarget("window", window.Title, window.Bounds, ParseHandle(window.Handle), AppName: window.ProcessName);
         }
 
-        return new ResolvedTarget("window", window.Title, window.Bounds, ParseHandle(window.Handle), AppName: window.ProcessName);
+        var inspection = _windowService.InspectWindowHandle(hwnd);
+        var label = string.IsNullOrWhiteSpace(inspection.Title)
+            ? $"0x{hwnd.ToInt64():X}"
+            : inspection.Title;
+        return new ResolvedTarget("window", label, inspection.Bounds, hwnd, AppName: inspection.ProcessName);
     }
 
     private static int ResolveSeeMaxDepth(OptionSet options)

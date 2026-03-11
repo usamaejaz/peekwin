@@ -60,6 +60,9 @@ public sealed class WindowService
     public nint GetForegroundWindowHandle()
         => NativeMethods.GetForegroundWindow();
 
+    public WindowInspection InspectWindowHandle(nint hwnd)
+        => InspectWindow(hwnd);
+
     public WindowInfo? FindWindowByTitle(string title)
         => FindWindowMatch(title, null);
 
