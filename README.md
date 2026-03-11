@@ -209,6 +209,8 @@ peekwin see --name Save --json
 
 `see` inspects the UI Automation tree for a target window. Without a target it uses the current foreground window. By default it returns the root plus one child level; `--deep` expands farther and `--max-depth` gives explicit control. `--role` filters by normalized control type such as `button`, `edit`, or `pane`.
 
+After `peekwin see`, the latest UI snapshot is stored temporarily so later commands can target elements by `--ref`. Pointer, image, and keyboard/text commands accept `--ref <id>` and resolve it against the latest saved snapshot.
+
 ### List screens
 
 ```powershell
@@ -331,6 +333,15 @@ peekwin keys --steps down:alt,tap:tab,tap:right,up:alt
 ```
 
 Bare step tokens default to `tap:<key>`. Use `down:`, `up:`, and `sleep:` for stateful keyboard flows.
+
+Element refs from `peekwin see` can be used directly in later commands:
+
+```powershell
+peekwin see --app notepad --json
+peekwin click --ref e7
+peekwin type "hello" --ref e12
+peekwin image --ref e5 --output .\save-button.png
+```
 
 ### Hold keys or a mouse button
 

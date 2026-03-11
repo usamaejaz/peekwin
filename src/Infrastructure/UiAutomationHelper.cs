@@ -49,7 +49,7 @@ internal static class UiAutomationHelper
 
             var nodes = new List<AutomationTreeNode>();
             var nextRef = 1;
-            Traverse(root, condition, maxDepth, depth: 0, parentRef: null, nodes, ref nextRef);
+            Traverse(root, condition, maxDepth, depth: 0, parentRef: null, path: "0", nodes, ref nextRef);
             return new AutomationTreeResult(true, nodes);
         }
         catch
@@ -58,6 +58,7 @@ internal static class UiAutomationHelper
         }
         finally
         {
+            ReleaseComObject(condition);
             ReleaseComObject(condition);
             ReleaseComObject(root);
             ReleaseComObject(automation);
@@ -71,11 +72,12 @@ internal static class UiAutomationHelper
         int maxDepth,
         int depth,
         string? parentRef,
+        string path,
         List<AutomationTreeNode> nodes,
         ref int nextRef)
     {
         var currentRef = $"e{nextRef++}";
-        nodes.Add(CreateNode(element, currentRef, parentRef, depth));
+        nodes.Add(CreateNode(element, currentRef, parentRef, path, depth));
         if (depth >= maxDepth)
         {
             return;
@@ -102,7 +104,7 @@ internal static class UiAutomationHelper
 
                 try
                 {
-                    Traverse(child, condition, maxDepth, depth + 1, currentRef, nodes, ref nextRef);
+                    Traverse(child, condition, maxDepth, depth + 1, currentRef, $"{path}.{index}", nodes, ref nextRef);
                 }
                 finally
                 {
@@ -116,7 +118,7 @@ internal static class UiAutomationHelper
         }
     }
 
-    private static AutomationTreeNode CreateNode(IUIAutomationElement element, string currentRef, string? parentRef, int depth)
+    private static AutomationTreeNode CreateNode(IUIAutomationElement element, string currentRef, string? parentRef, string path, int depth)
     {
         element.get_CurrentName(out var name);
         element.get_CurrentAutomationId(out var automationId);
@@ -130,6 +132,7 @@ internal static class UiAutomationHelper
         return new AutomationTreeNode(
             currentRef,
             parentRef,
+            path,
             depth,
             name ?? string.Empty,
             automationId ?? string.Empty,
@@ -145,6 +148,115 @@ internal static class UiAutomationHelper
         => controlTypeName.StartsWith("ControlType.", StringComparison.OrdinalIgnoreCase)
             ? controlTypeName["ControlType.".Length..].ToLowerInvariant()
             : controlTypeName.ToLowerInvariant();
+
+    public static bool TryFocusElementByPath(nint hwnd, string path)
+        => WithElementByPath(hwnd, path, static element => element.SetFocus() == 0);
+
+    public static bool TryGetBoundsByPath(nint hwnd, string path, out RectDto bounds)
+    {
+        bounds = default!;
+        var result = WithElementByPath(hwnd, path, static element =>
+        {
+            if (element.get_CurrentBoundingRectangle(out var rect) != 0)
+            {
+                return null;
+            }
+
+            return new RectDto(rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top);
+        });
+
+        if (result is null)
+        {
+            return false;
+        }
+
+        bounds = result;
+        return true;
+    }
+
+    private static T? WithElementByPath<T>(nint hwnd, string path, Func<IUIAutomationElement, T?> selector)
+    {
+        object? automationObject = null;
+        IUIAutomation? automation = null;
+        IUIAutomationElement? root = null;
+        IUIAutomationCondition? condition = null;
+        try
+        {
+            var type = Type.GetTypeFromCLSID(CUIAutomationClsid);
+            if (type is null)
+            {
+                return default;
+            }
+
+            automationObject = Activator.CreateInstance(type);
+            automation = automationObject as IUIAutomation;
+            if (automation is null || automation.ElementFromHandle(hwnd, out root) != 0 || root is null)
+            {
+                return default;
+            }
+
+            if (automation.CreateTrueCondition(out condition) != 0 || condition is null)
+            {
+                return default;
+            }
+
+            var current = root;
+            var segments = path.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            for (var segmentIndex = 1; segmentIndex < segments.Length; segmentIndex++)
+            {
+                if (!int.TryParse(segments[segmentIndex], out var childIndex))
+                {
+                    return default;
+                }
+
+                if (current.FindAll(TreeScope.Children, condition, out var children) != 0 || children is null)
+                {
+                    return default;
+                }
+
+                try
+                {
+                    if (children.GetElement(childIndex, out var child) != 0 || child is null)
+                    {
+                        return default;
+                    }
+
+                    if (!ReferenceEquals(current, root))
+                    {
+                        ReleaseComObject(current);
+                    }
+
+                    current = child;
+                }
+                finally
+                {
+                    ReleaseComObject(children);
+                }
+            }
+
+            try
+            {
+                return selector(current);
+            }
+            finally
+            {
+                if (!ReferenceEquals(current, root))
+                {
+                    ReleaseComObject(current);
+                }
+            }
+        }
+        catch
+        {
+            return default;
+        }
+        finally
+        {
+            ReleaseComObject(root);
+            ReleaseComObject(automation);
+            ReleaseComObject(automationObject);
+        }
+    }
 
     private static string GetControlTypeName(int controlType)
         => controlType switch

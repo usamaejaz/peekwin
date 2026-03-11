@@ -8,7 +8,7 @@ namespace PeekWin.Services;
 [SupportedOSPlatform("windows")]
 public sealed class InputService
 {
-    public async Task ClickAsync(int x, int y, MouseButton button, bool isDouble, int delayMs)
+    public void Click(int x, int y, MouseButton button, bool isDouble)
     {
         MoveMouse(x, y);
         var count = isDouble ? 2 : 1;
@@ -16,10 +16,15 @@ public sealed class InputService
         {
             MouseDown(button);
             MouseUp(button);
-            if (i + 1 < count && delayMs > 0)
-            {
-                await Task.Delay(delayMs).ConfigureAwait(false);
-            }
+        }
+    }
+
+    public async Task ClickAsync(int x, int y, MouseButton button, bool isDouble, int delayMs)
+    {
+        Click(x, y, button, isDouble);
+        if (delayMs > 0 && isDouble)
+        {
+            await Task.Delay(delayMs).ConfigureAwait(false);
         }
     }
 

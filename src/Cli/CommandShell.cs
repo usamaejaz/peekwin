@@ -14,6 +14,7 @@ public sealed class CommandShell
     private readonly InputService _inputService;
     private readonly ScreenshotService _screenshotService;
     private readonly VirtualDesktopService _virtualDesktopService;
+    private readonly AutomationSnapshotService _automationSnapshotService;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -22,12 +23,13 @@ public sealed class CommandShell
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
-    public CommandShell(WindowService windowService, InputService inputService, ScreenshotService screenshotService, VirtualDesktopService virtualDesktopService)
+    public CommandShell(WindowService windowService, InputService inputService, ScreenshotService screenshotService, VirtualDesktopService virtualDesktopService, AutomationSnapshotService automationSnapshotService)
     {
         _windowService = windowService;
         _inputService = inputService;
         _screenshotService = screenshotService;
         _virtualDesktopService = virtualDesktopService;
+        _automationSnapshotService = automationSnapshotService;
     }
 
     public async Task<int> RunAsync(string[] args)
@@ -488,7 +490,7 @@ public sealed class CommandShell
         const string command = "click";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin click [--x <n> --y <n>] [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--button left|right] [--double] [--delay-ms <n>] [--json]");
+            Console.WriteLine("Usage: peekwin click [--x <n> --y <n>] [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--button left|right] [--double] [--delay-ms <n>] [--json]");
             return 0;
         }
 
@@ -498,7 +500,7 @@ public sealed class CommandShell
         }
 
         EnsureNoPositionals(command, options);
-        var target = ParseTarget(command, options, allowScreen: true, allowWindow: true);
+        var target = ParseTarget(command, options, allowScreen: true, allowWindow: true, allowRef: true);
         var resolvedTarget = ResolveBoundsTarget(command, target);
         var point = ResolvePoint(command, options, resolvedTarget, requirePointIfNoTarget: false, defaultToCenterWhenTargeted: true, defaultToCursorWhenUnspecified: true);
         var button = ParseMouseButton(options.GetValueOrDefault("button") ?? "left");
@@ -520,7 +522,7 @@ public sealed class CommandShell
         const string command = "move";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin move --x <n> --y <n> [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--duration-ms <n>] [--steps <n>] [--json]");
+            Console.WriteLine("Usage: peekwin move --x <n> --y <n> [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--duration-ms <n>] [--steps <n>] [--json]");
             return 0;
         }
 
@@ -530,7 +532,7 @@ public sealed class CommandShell
         }
 
         EnsureNoPositionals(command, options);
-        var target = ParseTarget(command, options, allowScreen: true, allowWindow: true);
+        var target = ParseTarget(command, options, allowScreen: true, allowWindow: true, allowRef: true);
         var resolvedTarget = ResolveBoundsTarget(command, target);
         var point = ResolvePoint(command, options, resolvedTarget, requirePointIfNoTarget: true, defaultToCenterWhenTargeted: false);
         var durationMs = ReadNonNegativeInt(options, "duration-ms") ?? 0;
@@ -551,7 +553,7 @@ public sealed class CommandShell
         const string command = "drag";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin drag [--x <n> --y <n>] --to-x <n> --to-y <n> [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--button left|right] [--duration-ms <n>] [--steps <n>] [--json]");
+            Console.WriteLine("Usage: peekwin drag [--x <n> --y <n>] --to-x <n> --to-y <n> [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--button left|right] [--duration-ms <n>] [--steps <n>] [--json]");
             return 0;
         }
 
@@ -561,7 +563,7 @@ public sealed class CommandShell
         }
 
         EnsureNoPositionals(command, options);
-        var target = ParseTarget(command, options, allowScreen: true, allowWindow: true);
+        var target = ParseTarget(command, options, allowScreen: true, allowWindow: true, allowRef: true);
         var resolvedTarget = ResolveBoundsTarget(command, target);
         var start = ResolvePoint(command, options, resolvedTarget, requirePointIfNoTarget: false, defaultToCenterWhenTargeted: true, defaultToCursorWhenUnspecified: true);
         var end = ResolvePoint(command, options, resolvedTarget, "to-x", "to-y", requirePointIfNoTarget: true, defaultToCenterWhenTargeted: false);
@@ -594,7 +596,7 @@ public sealed class CommandShell
         const string command = "scroll";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin scroll [--delta <n>] [--delta-x <n>] [--x <n> --y <n>] [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--json]");
+            Console.WriteLine("Usage: peekwin scroll [--delta <n>] [--delta-x <n>] [--x <n> --y <n>] [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--json]");
             return 0;
         }
 
@@ -611,7 +613,7 @@ public sealed class CommandShell
             return Fail(command, "scroll requires --delta or --delta-x.", options.HasFlag("json"));
         }
 
-        var target = ParseTarget(command, options, allowScreen: true, allowWindow: true);
+        var target = ParseTarget(command, options, allowScreen: true, allowWindow: true, allowRef: true);
         var resolvedTarget = ResolveBoundsTarget(command, target);
         var point = ResolvePoint(
             command,
@@ -659,7 +661,7 @@ public sealed class CommandShell
     {
         if (IsHelpRequest(args))
         {
-            Console.WriteLine($"Usage: peekwin {command} [--button left|right] [--x <n> --y <n>] [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--json]");
+            Console.WriteLine($"Usage: peekwin {command} [--button left|right] [--x <n> --y <n>] [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--json]");
             return 0;
         }
 
@@ -670,7 +672,7 @@ public sealed class CommandShell
 
         EnsureNoPositionals(command, options);
         var button = ParseMouseButton(options.GetValueOrDefault("button") ?? "left");
-        var target = ParseTarget(command, options, allowScreen: true, allowWindow: true);
+        var target = ParseTarget(command, options, allowScreen: true, allowWindow: true, allowRef: true);
         var resolvedTarget = ResolveBoundsTarget(command, target);
         var point = TryResolvePoint(command, options, resolvedTarget, defaultToCenterWhenTargeted: true);
 
@@ -711,8 +713,9 @@ public sealed class CommandShell
         var text = ResolveText(command, options);
         var method = (options.GetValueOrDefault("method") ?? "type").ToLowerInvariant();
         var delayMs = ReadNonNegativeInt(options, "delay-ms") ?? 0;
-        var target = ParseTarget(command, options, allowScreen: false, allowWindow: true);
-        if (!FocusTargetIfNeeded(command, target, options.HasFlag("json")))
+        var target = ParseTarget(command, options, allowScreen: false, allowWindow: true, allowRef: true);
+        var resolvedTarget = ResolveWindowTarget(command, target);
+        if (!FocusResolvedTargetIfNeeded(command, resolvedTarget, options.HasFlag("json")))
         {
             return 1;
         }
@@ -733,7 +736,7 @@ public sealed class CommandShell
             command,
             CommandResult.Ok(
                 $"Entered {text.Length} characters using {method}.",
-                details: new { method, textLength = text.Length, target = ToTargetData(ResolveWindowTarget(command, target)) }),
+                details: new { method, textLength = text.Length, target = ToTargetData(resolvedTarget) }),
             options.HasFlag("json"));
         return 0;
     }
@@ -754,8 +757,9 @@ public sealed class CommandShell
 
         var text = ResolveText(command, options);
         var delayMs = ReadNonNegativeInt(options, "delay-ms") ?? 75;
-        var target = ParseTarget(command, options, allowScreen: false, allowWindow: true);
-        if (!FocusTargetIfNeeded(command, target, options.HasFlag("json")))
+        var target = ParseTarget(command, options, allowScreen: false, allowWindow: true, allowRef: true);
+        var resolvedTarget = ResolveWindowTarget(command, target);
+        if (!FocusResolvedTargetIfNeeded(command, resolvedTarget, options.HasFlag("json")))
         {
             return 1;
         }
@@ -765,7 +769,7 @@ public sealed class CommandShell
             command,
             CommandResult.Ok(
                 $"Pasted {text.Length} characters.",
-                details: new { textLength = text.Length, target = ToTargetData(ResolveWindowTarget(command, target)) }),
+                details: new { textLength = text.Length, target = ToTargetData(resolvedTarget) }),
             options.HasFlag("json"));
         return 0;
     }
@@ -787,8 +791,9 @@ public sealed class CommandShell
         var key = ResolveSingleKey(command, options);
         var repeat = ReadPositiveInt(options, "repeat") ?? 1;
         var delayMs = ReadNonNegativeInt(options, "delay-ms") ?? 0;
-        var target = ParseTarget(command, options, allowScreen: false, allowWindow: true);
-        if (!FocusTargetIfNeeded(command, target, options.HasFlag("json")))
+        var target = ParseTarget(command, options, allowScreen: false, allowWindow: true, allowRef: true);
+        var resolvedTarget = ResolveWindowTarget(command, target);
+        if (!FocusResolvedTargetIfNeeded(command, resolvedTarget, options.HasFlag("json")))
         {
             return 1;
         }
@@ -798,7 +803,7 @@ public sealed class CommandShell
             command,
             CommandResult.Ok(
                 $"Pressed {key} x{repeat}.",
-                details: new { key, repeat, delayMs, target = ToTargetData(ResolveWindowTarget(command, target)) }),
+                details: new { key, repeat, delayMs, target = ToTargetData(resolvedTarget) }),
             options.HasFlag("json"));
         return 0;
     }
@@ -818,8 +823,9 @@ public sealed class CommandShell
         }
 
         var keys = ResolveKeys(command, options);
-        var target = ParseTarget(command, options, allowScreen: false, allowWindow: true);
-        if (!FocusTargetIfNeeded(command, target, options.HasFlag("json")))
+        var target = ParseTarget(command, options, allowScreen: false, allowWindow: true, allowRef: true);
+        var resolvedTarget = ResolveWindowTarget(command, target);
+        if (!FocusResolvedTargetIfNeeded(command, resolvedTarget, options.HasFlag("json")))
         {
             return 1;
         }
@@ -829,7 +835,7 @@ public sealed class CommandShell
             command,
             CommandResult.Ok(
                 $"Sent hotkey {string.Join("+", keys)}.",
-                details: new { keys, target = ToTargetData(ResolveWindowTarget(command, target)) }),
+                details: new { keys, target = ToTargetData(resolvedTarget) }),
             options.HasFlag("json"));
         return 0;
     }
@@ -848,8 +854,9 @@ public sealed class CommandShell
             return 1;
         }
 
-        var target = ParseTarget(command, options, allowScreen: false, allowWindow: true);
-        if (!FocusTargetIfNeeded(command, target, options.HasFlag("json")))
+        var target = ParseTarget(command, options, allowScreen: false, allowWindow: true, allowRef: true);
+        var resolvedTarget = ResolveWindowTarget(command, target);
+        if (!FocusResolvedTargetIfNeeded(command, resolvedTarget, options.HasFlag("json")))
         {
             return 1;
         }
@@ -861,7 +868,7 @@ public sealed class CommandShell
             command,
             CommandResult.Ok(
                 $"Sent key sequence with {steps.Count} step(s).",
-                details: new { steps, delayMs, target = ToTargetData(ResolveWindowTarget(command, target)) }),
+                details: new { steps, delayMs, target = ToTargetData(resolvedTarget) }),
             options.HasFlag("json"));
         return 0;
     }
@@ -893,6 +900,7 @@ public sealed class CommandShell
         }
 
         var tree = traversal.Nodes;
+        _automationSnapshotService.SaveSnapshot(resolvedTarget.Label, resolvedTarget.AppName, resolvedTarget.WindowHandle!.Value, resolvedTarget.Bounds, maxDepth, tree);
         var elements = ApplySeeFilters(tree, roleFilter, nameFilter).ToList();
         var data = new
         {
@@ -951,22 +959,23 @@ public sealed class CommandShell
 
         if (hasButton)
         {
-            var target = ParseTarget(command, options, allowScreen: true, allowWindow: true);
-            var resolvedTarget = ResolveBoundsTarget(command, target);
-            var point = TryResolvePoint(command, options, resolvedTarget, defaultToCenterWhenTargeted: true);
+            var target = ParseTarget(command, options, allowScreen: true, allowWindow: true, allowRef: true);
+            var pointerTarget = ResolveBoundsTarget(command, target);
+            var point = TryResolvePoint(command, options, pointerTarget, defaultToCenterWhenTargeted: true);
             var button = ParseMouseButton(buttonText!);
             await _inputService.HoldMouseAsync(button, durationMs, point?.X, point?.Y);
             WriteResult(
                 command,
                 CommandResult.Ok(
                     $"Held {button.ToString().ToLowerInvariant()} mouse button for {durationMs}ms.",
-                    details: new { button, durationMs, point = point is null ? null : new { x = point.Value.X, y = point.Value.Y }, target = ToTargetData(resolvedTarget) }),
+                    details: new { button, durationMs, point = point is null ? null : new { x = point.Value.X, y = point.Value.Y }, target = ToTargetData(pointerTarget) }),
                 options.HasFlag("json"));
             return 0;
         }
 
-        var windowTarget = ParseTarget(command, options, allowScreen: false, allowWindow: true);
-        if (!FocusTargetIfNeeded(command, windowTarget, options.HasFlag("json")))
+        var windowTarget = ParseTarget(command, options, allowScreen: false, allowWindow: true, allowRef: true);
+        var resolvedTarget = ResolveWindowTarget(command, windowTarget);
+        if (!FocusResolvedTargetIfNeeded(command, resolvedTarget, options.HasFlag("json")))
         {
             return 1;
         }
@@ -977,7 +986,7 @@ public sealed class CommandShell
             command,
             CommandResult.Ok(
                 $"Held {string.Join("+", keys)} for {durationMs}ms.",
-                details: new { keys, durationMs, target = ToTargetData(ResolveWindowTarget(command, windowTarget)) }),
+                details: new { keys, durationMs, target = ToTargetData(resolvedTarget) }),
             options.HasFlag("json"));
         return 0;
     }
@@ -1018,7 +1027,7 @@ public sealed class CommandShell
         EnsureNoPositionals(command, options);
         var output = options.GetValueOrDefault("output")
             ?? Path.Combine(Environment.CurrentDirectory, $"peekwin-{DateTime.UtcNow:yyyyMMddHHmmss}.png");
-        var target = ParseTarget(command, options, allowScreen: true, allowWindow: true, requireTarget: true);
+        var target = ParseTarget(command, options, allowScreen: true, allowWindow: true, allowRef: true, requireTarget: true);
         var resolvedTarget = target.Screen is null ? ResolveCaptureWindowTarget(command, target)! : ResolveBoundsTarget(command, target)!;
 
         CommandResult result;
@@ -1065,13 +1074,14 @@ public sealed class CommandShell
         return 0;
     }
 
-    private TargetSelector ParseTarget(string command, OptionSet options, bool allowScreen, bool allowWindow, bool requireTarget = false)
+    private TargetSelector ParseTarget(string command, OptionSet options, bool allowScreen, bool allowWindow, bool allowRef = false, bool requireTarget = false)
     {
         var screen = ReadInt(options, "screen");
         var handle = options.TryGetHandle("handle");
         var windowHandle = options.TryGetHandle("window");
         var title = options.GetValueOrDefault("title");
         var app = options.GetValueOrDefault("app");
+        var reference = options.GetValueOrDefault("ref");
 
         if (handle != 0 && windowHandle != 0 && handle != windowHandle)
         {
@@ -1084,7 +1094,8 @@ public sealed class CommandShell
         }
 
         var hasWindowFilter = handle != 0 || !string.IsNullOrWhiteSpace(title) || !string.IsNullOrWhiteSpace(app);
-        var targetCount = (screen is not null ? 1 : 0) + (hasWindowFilter ? 1 : 0);
+        var hasReference = !string.IsNullOrWhiteSpace(reference);
+        var targetCount = (screen is not null ? 1 : 0) + (hasWindowFilter ? 1 : 0) + (hasReference ? 1 : 0);
 
         if (!allowScreen && screen is not null)
         {
@@ -1096,9 +1107,19 @@ public sealed class CommandShell
             throw new InvalidOperationException($"{command} does not support --app, --title, --handle, or --window.");
         }
 
-        if (screen is not null && hasWindowFilter)
+        if (!allowRef && hasReference)
         {
-            throw new InvalidOperationException($"{command} accepts either --screen or window targeting flags, not both.");
+            throw new InvalidOperationException($"{command} does not support --ref.");
+        }
+
+        if (screen is not null && (hasWindowFilter || hasReference))
+        {
+            throw new InvalidOperationException($"{command} accepts either --screen or another target, not both.");
+        }
+
+        if (hasReference && hasWindowFilter)
+        {
+            throw new InvalidOperationException($"{command} accepts either --ref or window targeting flags, not both.");
         }
 
         if (handle != 0 && (!string.IsNullOrWhiteSpace(title) || !string.IsNullOrWhiteSpace(app)))
@@ -1111,11 +1132,16 @@ public sealed class CommandShell
             throw new InvalidOperationException($"{command} requires a target.");
         }
 
-        return new TargetSelector(screen, handle, title, app);
+        return new TargetSelector(screen, handle, title, app, reference);
     }
 
     private ResolvedTarget? ResolveBoundsTarget(string command, TargetSelector target)
     {
+        if (!string.IsNullOrWhiteSpace(target.Ref))
+        {
+            return ResolveRefTarget(target.Ref);
+        }
+
         if (target.Screen is not null)
         {
             var layout = _screenshotService.GetScreenLayout();
@@ -1151,6 +1177,11 @@ public sealed class CommandShell
         Func<string?, string?, WindowInfo?> findWindow,
         string errorPrefix)
     {
+        if (!string.IsNullOrWhiteSpace(target.Ref))
+        {
+            return ResolveRefTarget(target.Ref);
+        }
+
         WindowInfo? window = null;
         if (target.Handle != 0)
         {
@@ -1189,15 +1220,42 @@ public sealed class CommandShell
         return $"{prefix} app: {target.App}";
     }
 
-    private bool FocusTargetIfNeeded(string command, TargetSelector target, bool asJson)
+    private ResolvedTarget ResolveRefTarget(string reference)
     {
-        var resolved = ResolveWindowTarget(command, target);
-        if (resolved?.WindowHandle is null)
+        var target = _automationSnapshotService.ResolveRef(reference);
+        var bounds = target.Bounds;
+        if (!string.IsNullOrWhiteSpace(target.Path) && UiAutomationHelper.TryGetBoundsByPath(target.WindowHandle, target.Path!, out var liveBounds) && liveBounds.Width > 0 && liveBounds.Height > 0)
+        {
+            bounds = liveBounds;
+        }
+
+        var label = string.IsNullOrWhiteSpace(target.Name)
+            ? target.Ref
+            : $"{target.Ref} {target.ControlType} {target.Name}";
+        return new ResolvedTarget("element", label, bounds, target.WindowHandle, AppName: target.AppName, Ref: target.Ref, Path: target.Path);
+    }
+
+    private bool FocusResolvedTargetIfNeeded(string command, ResolvedTarget? target, bool asJson)
+    {
+        if (target?.WindowHandle is null)
         {
             return true;
         }
 
-        var result = _windowService.FocusWindow(resolved.WindowHandle.Value);
+        if (target.Kind == "element")
+        {
+            if (!string.IsNullOrWhiteSpace(target.Path) && UiAutomationHelper.TryFocusElementByPath(target.WindowHandle.Value, target.Path!))
+            {
+                return true;
+            }
+
+            var centerX = target.Bounds.Left + target.Bounds.Width / 2;
+            var centerY = target.Bounds.Top + target.Bounds.Height / 2;
+            _inputService.Click(centerX, centerY, MouseButton.Left, isDouble: false);
+            return true;
+        }
+
+        var result = _windowService.FocusWindow(target.WindowHandle.Value);
         if (result.Success)
         {
             return true;
@@ -1205,6 +1263,12 @@ public sealed class CommandShell
 
         WriteResult(command, result, asJson);
         return false;
+    }
+
+    private bool FocusTargetIfNeeded(string command, TargetSelector target, bool asJson)
+    {
+        var resolved = ResolveWindowTarget(command, target);
+        return FocusResolvedTargetIfNeeded(command, resolved, asJson);
     }
 
     private (int X, int Y)? TryResolvePoint(string command, OptionSet options, ResolvedTarget? target, bool defaultToCenterWhenTargeted)
@@ -1680,6 +1744,7 @@ public sealed class CommandShell
                 app = target.AppName,
                 screen = target.ScreenIndex,
                 handle = target.WindowHandle is null ? null : $"0x{target.WindowHandle.Value.ToInt64():X}",
+                @ref = target.Ref,
                 bounds = target.Bounds
             };
 
@@ -1730,7 +1795,7 @@ public sealed class CommandShell
         Console.WriteLine("  peekwin desktop list|current [--json]");
         Console.WriteLine("  peekwin desktop switch <index> [--delay-ms <n>] [--json]");
         Console.WriteLine("  peekwin screens [--json]");
-        Console.WriteLine("  peekwin image (--screen <n> | [--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) [--output <path>] [--json]");
+        Console.WriteLine("  peekwin image (--screen <n> | [--app <name>] [--title <text>] | --handle <HWND> | --window <HWND> | --ref <id>) [--output <path>] [--json]");
         Console.WriteLine("  peekwin screenshot ...   alias for 'peekwin image'");
         Console.WriteLine();
         Console.WriteLine("Pointer commands:");
@@ -1741,19 +1806,19 @@ public sealed class CommandShell
         Console.WriteLine("  peekwin mouse down|up [--button left|right] [--x <n> --y <n>] [target] [--json]");
         Console.WriteLine();
         Console.WriteLine("Keyboard/text commands:");
-        Console.WriteLine("  peekwin type [text] [--delay-ms <n>] [--method type|paste] [window-target] [--json]");
-        Console.WriteLine("  peekwin paste [text] [--delay-ms <n>] [window-target] [--json]");
-        Console.WriteLine("  peekwin press [key] [--repeat <n>] [--delay-ms <n>] [window-target] [--json]");
-        Console.WriteLine("  peekwin hotkey [keys...] [--keys ctrl,s] [window-target] [--json]        single chord, e.g. ctrl s");
-        Console.WriteLine("  peekwin keys [steps...] [--steps <value>] [--delay-ms <n>] [window-target] [--json]   sequence of taps/holds");
+        Console.WriteLine("  peekwin type [text] [--delay-ms <n>] [--method type|paste] [window-target | --ref <id>] [--json]");
+        Console.WriteLine("  peekwin paste [text] [--delay-ms <n>] [window-target | --ref <id>] [--json]");
+        Console.WriteLine("  peekwin press [key] [--repeat <n>] [--delay-ms <n>] [window-target | --ref <id>] [--json]");
+        Console.WriteLine("  peekwin hotkey [keys...] [--keys ctrl,s] [window-target | --ref <id>] [--json]        single chord, e.g. ctrl s");
+        Console.WriteLine("  peekwin keys [steps...] [--steps <value>] [--delay-ms <n>] [window-target | --ref <id>] [--json]   sequence of taps/holds");
         Console.WriteLine("  peekwin hold [keys...] [--keys ctrl,shift | --button left|right] [--duration-ms <n>] [target] [--json]");
         Console.WriteLine();
         Console.WriteLine("Utility commands:");
         Console.WriteLine("  peekwin sleep <milliseconds> [--json]");
         Console.WriteLine();
         Console.WriteLine("Target flags:");
-        Console.WriteLine("  pointer/image:      --screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND>");
-        Console.WriteLine("  keyboard/text:      --app <name> | --title <text> | --handle <HWND> | --window <HWND>");
+        Console.WriteLine("  pointer/image:      --screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>");
+        Console.WriteLine("  keyboard/text:      --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>");
         Console.WriteLine("  --app and --title can be combined to narrow a window match");
         Console.WriteLine("  relative coordinates are offset from the selected screen or window");
         Console.WriteLine();
@@ -1831,13 +1896,13 @@ public sealed class CommandShell
         Console.WriteLine("Hold commands:");
         Console.WriteLine("  peekwin hold ctrl shift [--duration-ms <n>] [--app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--json]");
         Console.WriteLine("  peekwin hold --keys ctrl,shift [--duration-ms <n>] [--app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--json]");
-        Console.WriteLine("  peekwin hold --button left|right [--duration-ms <n>] [--x <n> --y <n>] [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--json]");
+        Console.WriteLine("  peekwin hold --button left|right [--duration-ms <n>] [--x <n> --y <n>] [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--json]");
     }
 
     private static void PrintImageHelp()
     {
         Console.WriteLine("Image commands:");
-        Console.WriteLine("  peekwin image (--screen <n> | [--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) [--output <path>] [--json]");
+        Console.WriteLine("  peekwin image (--screen <n> | [--app <name>] [--title <text>] | --handle <HWND> | --window <HWND> | --ref <id>) [--output <path>] [--json]");
         Console.WriteLine("  peekwin screenshot ...             alias for 'peekwin image'");
         Console.WriteLine("  peekwin image info [--json]        alias for 'peekwin screens'");
     }
@@ -1846,9 +1911,9 @@ public sealed class CommandShell
 
     private sealed record ActionResultData(string Message, string? OutputPath, object? Details);
 
-    private sealed record TargetSelector(int? Screen, nint Handle, string? Title, string? App);
+    private sealed record TargetSelector(int? Screen, nint Handle, string? Title, string? App, string? Ref);
 
-    private sealed record ResolvedTarget(string Kind, string Label, RectDto Bounds, nint? WindowHandle = null, int? ScreenIndex = null, string? AppName = null);
+    private sealed record ResolvedTarget(string Kind, string Label, RectDto Bounds, nint? WindowHandle = null, int? ScreenIndex = null, string? AppName = null, string? Ref = null, string? Path = null);
 }
 
 internal sealed class OptionSet

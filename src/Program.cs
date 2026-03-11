@@ -39,7 +39,8 @@ static CommandShell CreateShell()
         new WindowService(),
         inputService,
         new ScreenshotService(),
-        new VirtualDesktopService(inputService));
+        new VirtualDesktopService(inputService),
+        new AutomationSnapshotService());
 }
 
 static bool AllowsNonWindowsExecution(IReadOnlyList<string> args)
