@@ -414,7 +414,7 @@ public sealed class CommandShell
         const string command = "app list";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin app list [--all] [--name <text>] [--json]");
+            Console.WriteLine("Usage: peekwin app list [--name <text>] [--json]");
             return 0;
         }
 
@@ -424,7 +424,7 @@ public sealed class CommandShell
         }
 
         EnsureNoPositionals(command, options);
-        var apps = _windowService.ListApps(includeHidden: options.HasFlag("all"));
+        var apps = _windowService.ListApps();
         var nameFilter = options.GetValueOrDefault("name");
         if (!string.IsNullOrWhiteSpace(nameFilter))
         {
@@ -1456,7 +1456,7 @@ public sealed class CommandShell
         Console.WriteLine("Core commands:");
         Console.WriteLine("  peekwin window list [--all] [--app <name>] [--title <text>] [--json]");
         Console.WriteLine("  peekwin window focus|inspect|close|minimize|maximize|restore (--app <name> | --title <text> | --handle <HWND> | --window <HWND>) [--json]");
-        Console.WriteLine("  peekwin app list [--all] [--name <text>] [--json]");
+        Console.WriteLine("  peekwin app list [--name <text>] [--json]");
         Console.WriteLine("  peekwin desktop list|current [--json]");
         Console.WriteLine("  peekwin desktop switch <index> [--delay-ms <n>] [--json]");
         Console.WriteLine("  peekwin screens [--json]");
@@ -1508,7 +1508,7 @@ public sealed class CommandShell
     private static void PrintAppHelp()
     {
         Console.WriteLine("App commands:");
-        Console.WriteLine("  peekwin app list [--all] [--name <text>] [--json]");
+        Console.WriteLine("  peekwin app list [--name <text>] [--json]");
     }
 
     private static void PrintDesktopHelp()
