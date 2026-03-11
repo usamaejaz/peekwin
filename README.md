@@ -131,6 +131,8 @@ Keyboard and text-entry commands support window targeting:
 
 For pointer commands, coordinates are absolute by default. When you add `--screen`, `--app`, `--title`, `--handle`, or `--window`, coordinates become relative to that screen or window.
 
+peekwin now enables per-monitor DPI awareness at startup so cursor movement and capture bounds line up more reliably on mixed-scale multi-monitor setups.
+
 `peekwin image` requires exactly one target and captures only that monitor or window. Window-relative targeting also accepts `--app` when a process-name match is more convenient. `peekwin screenshot` remains as an alias.
 
 ## Usage

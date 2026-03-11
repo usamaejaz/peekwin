@@ -1,8 +1,14 @@
 using System.Runtime.Versioning;
 using PeekWin.Cli;
+using PeekWin.Infrastructure;
 using PeekWin.Services;
 
 [assembly: SupportedOSPlatform("windows")]
+
+if (OperatingSystem.IsWindows())
+{
+    TryEnablePerMonitorDpiAwareness();
+}
 
 if (!OperatingSystem.IsWindows())
 {
@@ -44,3 +50,32 @@ static bool AllowsNonWindowsExecution(IReadOnlyList<string> args)
 
 static bool IsVersionRequest(IReadOnlyList<string> args)
     => args.Count > 0 && args[0].Equals("version", StringComparison.OrdinalIgnoreCase);
+
+
+static void TryEnablePerMonitorDpiAwareness()
+{
+    try
+    {
+        if (NativeMethods.SetProcessDpiAwarenessContext(NativeMethods.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2))
+        {
+            return;
+        }
+    }
+    catch (EntryPointNotFoundException)
+    {
+    }
+    catch (DllNotFoundException)
+    {
+    }
+
+    try
+    {
+        NativeMethods.SetProcessDPIAware();
+    }
+    catch (EntryPointNotFoundException)
+    {
+    }
+    catch (DllNotFoundException)
+    {
+    }
+}
