@@ -34,6 +34,14 @@ internal static class NativeMethods
     internal const int SM_CXVIRTUALSCREEN = 78;
     internal const int SM_CYVIRTUALSCREEN = 79;
     internal const uint MONITORINFOF_PRIMARY = 0x00000001;
+    internal static readonly nint DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = -4;
+
+
+    [DllImport("user32.dll")]
+    internal static extern bool SetProcessDpiAwarenessContext(nint dpiContext);
+
+    [DllImport("user32.dll")]
+    internal static extern bool SetProcessDPIAware();
 
     [DllImport("user32.dll")]
     internal static extern bool EnumWindows(EnumWindowsProc callback, nint lParam);
