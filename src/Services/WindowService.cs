@@ -64,6 +64,14 @@ public sealed class WindowService
             .ThenBy(window => window.Handle, StringComparer.OrdinalIgnoreCase)
             .FirstOrDefault();
 
+    public WindowInfo? FindWindowByApp(string appName)
+        => ListWindows()
+            .Where(window => window.ProcessName.Contains(appName, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(window => window.IsVisible)
+            .ThenBy(window => window.Title, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(window => window.Handle, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
+
     public CommandResult FocusWindow(nint hwnd)
     {
         if (hwnd == 0 || !NativeMethods.IsWindow(hwnd))

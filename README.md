@@ -117,6 +117,8 @@ Error responses keep the same shape with `success: false` and `error` populated.
 Pointer and image commands share the same target flags:
 
 - `--screen <n>`
+- `--app <name>`
+- `--app <name>`
 - `--title <text>`
 - `--handle <HWND>`
 - `--window <HWND>` as an alias for `--handle`
@@ -127,9 +129,9 @@ Keyboard and text-entry commands support window targeting:
 - `--handle <HWND>`
 - `--window <HWND>`
 
-For pointer commands, coordinates are absolute by default. When you add `--screen`, `--title`, or `--handle`, coordinates become relative to that screen or window.
+For pointer commands, coordinates are absolute by default. When you add `--screen`, `--app`, `--title`, `--handle`, or `--window`, coordinates become relative to that screen or window.
 
-`peekwin image` requires exactly one target and captures only that monitor or window. `peekwin screenshot` remains as an alias.
+`peekwin image` requires exactly one target and captures only that monitor or window. Window-relative targeting also accepts `--app` when a process-name match is more convenient. `peekwin screenshot` remains as an alias.
 
 ## Usage
 
@@ -173,6 +175,7 @@ Example window fields:
 peekwin window focus --handle 0x001F09A2
 peekwin window inspect --title "Notepad"
 peekwin window minimize --title "Notepad"
+peekwin window focus --app notepad
 peekwin window maximize --handle 0x001F09A2
 peekwin window restore --title "Notepad"
 peekwin window close --title "Notepad"
@@ -239,6 +242,7 @@ If a click target is provided and `--x/--y` are omitted, peekwin clicks the cent
 peekwin drag --x 100 --y 100 --to-x 400 --to-y 300
 peekwin drag --screen 1 --x 20 --y 20 --to-x 500 --to-y 200
 peekwin drag --title "Notepad" --x 30 --y 60 --to-x 300 --to-y 60 --duration-ms 250 --steps 16
+peekwin drag --app notepad --x 30 --y 60 --to-x 300 --to-y 60 --duration-ms 250 --steps 16
 ```
 
 ### Scroll
@@ -268,6 +272,7 @@ peekwin type "hello world"
 peekwin type --text "slow typing" --delay-ms 45
 peekwin type "paste this" --method paste
 peekwin type "focused text" --title "Notepad"
+peekwin type "hello from app target" --app notepad
 ```
 
 Typing uses Unicode keyboard injection through `SendInput`.
@@ -277,6 +282,7 @@ Typing uses Unicode keyboard injection through `SendInput`.
 ```powershell
 peekwin paste "hello from clipboard"
 peekwin paste --text "window-targeted paste" --title "Notepad"
+peekwin paste "hello via app target" --app notepad
 peekwin paste "restored clipboard text" --delay-ms 100
 ```
 
@@ -327,6 +333,7 @@ Capture a specific window:
 ```powershell
 peekwin image --handle 0x001F09A2 --output .\window.png
 peekwin image --title "Notepad" --output .\notepad.png
+peekwin image --app notepad --output .\notepad.png
 ```
 
 Keep using the old command spelling if needed:

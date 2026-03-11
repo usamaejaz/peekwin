@@ -312,65 +312,52 @@ public sealed class InputService
 
     private static ClipboardSnapshot CaptureClipboardSnapshot()
     {
-        if (!NativeMethods.OpenClipboard(nint.Zero))
+        var hadClipboardData = ClipboardHasData();
+        if (!hadClipboardData)
         {
-            throw new ExternalException("Failed to open clipboard.");
+            return new ClipboardSnapshot(false, null);
         }
 
-        try
+        var result = NativeMethods.OleGetClipboard(out var dataObject);
+        if (result < 0)
         {
-            if (!NativeMethods.IsClipboardFormatAvailable(NativeMethods.CF_UNICODETEXT))
-            {
-                return new ClipboardSnapshot(false, null);
-            }
-
-            var handle = NativeMethods.GetClipboardData(NativeMethods.CF_UNICODETEXT);
-            if (handle == nint.Zero)
-            {
-                return new ClipboardSnapshot(false, null);
-            }
-
-            var pointer = NativeMethods.GlobalLock(handle);
-            if (pointer == nint.Zero)
-            {
-                return new ClipboardSnapshot(false, null);
-            }
-
-            try
-            {
-                return new ClipboardSnapshot(true, Marshal.PtrToStringUni(pointer));
-            }
-            finally
-            {
-                NativeMethods.GlobalUnlock(handle);
-            }
+            Marshal.ThrowExceptionForHR(result);
         }
-        finally
-        {
-            NativeMethods.CloseClipboard();
-        }
+
+        return new ClipboardSnapshot(true, dataObject);
     }
 
     private static void RestoreClipboardSnapshot(ClipboardSnapshot snapshot)
     {
-        if (snapshot.HasText)
+        if (!snapshot.HadClipboardData)
         {
-            SetClipboardText(snapshot.Text!);
+            if (!NativeMethods.OpenClipboard(nint.Zero))
+            {
+                throw new ExternalException("Failed to open clipboard.");
+            }
+
+            try
+            {
+                NativeMethods.EmptyClipboard();
+            }
+            finally
+            {
+                NativeMethods.CloseClipboard();
+            }
+
             return;
         }
 
-        if (!NativeMethods.OpenClipboard(nint.Zero))
+        var result = NativeMethods.OleSetClipboard(snapshot.DataObject);
+        if (result < 0)
         {
-            throw new ExternalException("Failed to open clipboard.");
+            Marshal.ThrowExceptionForHR(result);
         }
 
-        try
+        result = NativeMethods.OleFlushClipboard();
+        if (result < 0)
         {
-            NativeMethods.EmptyClipboard();
-        }
-        finally
-        {
-            NativeMethods.CloseClipboard();
+            Marshal.ThrowExceptionForHR(result);
         }
     }
 
@@ -447,7 +434,7 @@ public sealed class InputService
             {
                 return RunSta(action);
             }
-            catch (ExternalException ex)
+            catch (Exception ex) when (ex is ExternalException or COMException)
             {
                 lastError = ex;
                 Thread.Sleep(25);
@@ -464,13 +451,28 @@ public sealed class InputService
 
         var thread = new Thread(() =>
         {
+            var oleInitialized = false;
             try
             {
+                var oleResult = NativeMethods.OleInitialize(nint.Zero);
+                if (oleResult < 0)
+                {
+                    Marshal.ThrowExceptionForHR(oleResult);
+                }
+
+                oleInitialized = true;
                 result = action();
             }
             catch (Exception ex)
             {
                 error = ex;
+            }
+            finally
+            {
+                if (oleInitialized)
+                {
+                    NativeMethods.OleUninitialize();
+                }
             }
         });
 
@@ -486,7 +488,24 @@ public sealed class InputService
         return result!;
     }
 
-    private sealed record ClipboardSnapshot(bool HasText, string? Text);
+    private static bool ClipboardHasData()
+    {
+        if (!NativeMethods.OpenClipboard(nint.Zero))
+        {
+            throw new ExternalException("Failed to open clipboard.");
+        }
+
+        try
+        {
+            return NativeMethods.EnumClipboardFormats(0) != 0;
+        }
+        finally
+        {
+            NativeMethods.CloseClipboard();
+        }
+    }
+
+    private sealed record ClipboardSnapshot(bool HadClipboardData, System.Runtime.InteropServices.ComTypes.IDataObject? DataObject);
 }
 
 internal static class VirtualKeyParser

@@ -113,6 +113,24 @@ internal static class NativeMethods
     internal static extern nint SetClipboardData(uint uFormat, nint hMem);
 
     [DllImport("user32.dll")]
+    internal static extern uint EnumClipboardFormats(uint format);
+
+    [DllImport("ole32.dll")]
+    internal static extern int OleInitialize(nint reserved);
+
+    [DllImport("ole32.dll")]
+    internal static extern void OleUninitialize();
+
+    [DllImport("ole32.dll")]
+    internal static extern int OleGetClipboard([MarshalAs(UnmanagedType.Interface)] out System.Runtime.InteropServices.ComTypes.IDataObject? dataObject);
+
+    [DllImport("ole32.dll")]
+    internal static extern int OleSetClipboard([MarshalAs(UnmanagedType.Interface)] System.Runtime.InteropServices.ComTypes.IDataObject? dataObject);
+
+    [DllImport("ole32.dll")]
+    internal static extern int OleFlushClipboard();
+
+    [DllImport("user32.dll")]
     internal static extern short VkKeyScan(char ch);
 
     [DllImport("user32.dll")]

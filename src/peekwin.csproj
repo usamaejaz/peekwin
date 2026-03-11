@@ -13,4 +13,10 @@
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Compile Remove="peekwin/**" />
+    <EmbeddedResource Remove="peekwin/**" />
+    <None Remove="peekwin/**" />
+  </ItemGroup>
+
 </Project>

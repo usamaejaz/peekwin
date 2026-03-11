@@ -129,12 +129,12 @@ public sealed class CommandShell
         var result = args[0].ToLowerInvariant() switch
         {
             "list" => HandleWindowList(args[1..]),
-            "focus" => HandleWindowAction(args[1..], "window focus", _windowService.FocusWindow, _windowService.FocusWindowByTitle, "Focused"),
+            "focus" => HandleWindowAction(args[1..], "window focus", _windowService.FocusWindow),
             "inspect" => HandleWindowInspect(args[1..]),
-            "close" => HandleWindowAction(args[1..], "window close", _windowService.CloseWindow, _windowService.CloseWindowByTitle, "Closed"),
-            "minimize" => HandleWindowAction(args[1..], "window minimize", _windowService.MinimizeWindow, _windowService.MinimizeWindowByTitle, "Minimized"),
-            "maximize" => HandleWindowAction(args[1..], "window maximize", _windowService.MaximizeWindow, _windowService.MaximizeWindowByTitle, "Maximized"),
-            "restore" => HandleWindowAction(args[1..], "window restore", _windowService.RestoreWindow, _windowService.RestoreWindowByTitle, "Restored"),
+            "close" => HandleWindowAction(args[1..], "window close", _windowService.CloseWindow),
+            "minimize" => HandleWindowAction(args[1..], "window minimize", _windowService.MinimizeWindow),
+            "maximize" => HandleWindowAction(args[1..], "window maximize", _windowService.MaximizeWindow),
+            "restore" => HandleWindowAction(args[1..], "window restore", _windowService.RestoreWindow),
             _ => Fail("window", $"Unknown window subcommand: {args[0]}", RequestedJson(args))
         };
 
@@ -178,13 +178,11 @@ public sealed class CommandShell
     private int HandleWindowAction(
         string[] args,
         string command,
-        Func<nint, CommandResult> handleAction,
-        Func<string, CommandResult> titleAction,
-        string verb)
+        Func<nint, CommandResult> handleAction)
     {
         if (IsHelpRequest(args))
         {
-            Console.WriteLine($"Usage: peekwin {command} (--handle <HWND> | --window <HWND> | --title <text>) [--json]");
+            Console.WriteLine($"Usage: peekwin {command} (--app <name> | --title <text> | --handle <HWND> | --window <HWND>) [--json]");
             return 0;
         }
 
@@ -195,9 +193,8 @@ public sealed class CommandShell
 
         EnsureNoPositionals(command, options);
         var target = ParseTarget(command, options, allowScreen: false, allowWindow: true, requireTarget: true);
-        var result = target.Handle != 0
-            ? handleAction(target.Handle)
-            : titleAction(target.Title!);
+        var resolvedTarget = ResolveWindowTarget(command, target)!;
+        var result = handleAction(resolvedTarget.WindowHandle!.Value);
 
         WriteResult(command, result, options.HasFlag("json"));
         return result.Success ? 0 : 1;
@@ -208,7 +205,7 @@ public sealed class CommandShell
         const string command = "window inspect";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin window inspect (--handle <HWND> | --window <HWND> | --title <text>) [--json]");
+            Console.WriteLine("Usage: peekwin window inspect (--app <name> | --title <text> | --handle <HWND> | --window <HWND>) [--json]");
             return 0;
         }
 
@@ -219,9 +216,8 @@ public sealed class CommandShell
 
         EnsureNoPositionals(command, options);
         var target = ParseTarget(command, options, allowScreen: false, allowWindow: true, requireTarget: true);
-        var inspection = target.Handle != 0
-            ? _windowService.InspectWindow(target.Handle)
-            : _windowService.InspectWindowByTitle(target.Title!);
+        var resolvedTarget = ResolveWindowTarget(command, target)!;
+        var inspection = _windowService.InspectWindow(resolvedTarget.WindowHandle!.Value);
 
         if (options.HasFlag("json"))
         {
@@ -447,7 +443,7 @@ public sealed class CommandShell
         const string command = "click";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin click [--x <n> --y <n>] [--screen <n> | --title <text> | --handle <HWND> | --window <HWND>] [--button left|right] [--double] [--delay-ms <n>] [--json]");
+            Console.WriteLine("Usage: peekwin click [--x <n> --y <n>] [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--button left|right] [--double] [--delay-ms <n>] [--json]");
             return 0;
         }
 
@@ -479,7 +475,7 @@ public sealed class CommandShell
         const string command = "move";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin move --x <n> --y <n> [--screen <n> | --title <text> | --handle <HWND> | --window <HWND>] [--duration-ms <n>] [--steps <n>] [--json]");
+            Console.WriteLine("Usage: peekwin move --x <n> --y <n> [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--duration-ms <n>] [--steps <n>] [--json]");
             return 0;
         }
 
@@ -510,7 +506,7 @@ public sealed class CommandShell
         const string command = "drag";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin drag --x <n> --y <n> --to-x <n> --to-y <n> [--screen <n> | --title <text> | --handle <HWND> | --window <HWND>] [--button left|right] [--duration-ms <n>] [--steps <n>] [--json]");
+            Console.WriteLine("Usage: peekwin drag --x <n> --y <n> --to-x <n> --to-y <n> [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--button left|right] [--duration-ms <n>] [--steps <n>] [--json]");
             return 0;
         }
 
@@ -551,7 +547,7 @@ public sealed class CommandShell
         const string command = "scroll";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin scroll [--delta <n>] [--delta-x <n>] [--x <n> --y <n>] [--screen <n> | --title <text> | --handle <HWND> | --window <HWND>] [--json]");
+            Console.WriteLine("Usage: peekwin scroll [--delta <n>] [--delta-x <n>] [--x <n> --y <n>] [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--json]");
             return 0;
         }
 
@@ -615,7 +611,7 @@ public sealed class CommandShell
     {
         if (IsHelpRequest(args))
         {
-            Console.WriteLine($"Usage: peekwin {command} [--button left|right] [--x <n> --y <n>] [--screen <n> | --title <text> | --handle <HWND> | --window <HWND>] [--json]");
+            Console.WriteLine($"Usage: peekwin {command} [--button left|right] [--x <n> --y <n>] [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--json]");
             return 0;
         }
 
@@ -653,7 +649,7 @@ public sealed class CommandShell
         const string command = "type";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin type [text] [--text <value>] [--delay-ms <n>] [--method type|paste] [--title <text> | --handle <HWND> | --window <HWND>] [--json]");
+            Console.WriteLine("Usage: peekwin type [text] [--text <value>] [--delay-ms <n>] [--method type|paste] [--app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--json]");
             return 0;
         }
 
@@ -697,7 +693,7 @@ public sealed class CommandShell
         const string command = "paste";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin paste [text] [--text <value>] [--delay-ms <n>] [--title <text> | --handle <HWND> | --window <HWND>] [--json]");
+            Console.WriteLine("Usage: peekwin paste [text] [--text <value>] [--delay-ms <n>] [--app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--json]");
             return 0;
         }
 
@@ -729,7 +725,7 @@ public sealed class CommandShell
         const string command = "press";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin press [key] [--key <name>] [--repeat <n>] [--delay-ms <n>] [--title <text> | --handle <HWND> | --window <HWND>] [--json]");
+            Console.WriteLine("Usage: peekwin press [key] [--key <name>] [--repeat <n>] [--delay-ms <n>] [--app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--json]");
             return 0;
         }
 
@@ -762,7 +758,7 @@ public sealed class CommandShell
         const string command = "hotkey";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin hotkey [keys...] [--keys ctrl,s] [--title <text> | --handle <HWND> | --window <HWND>] [--json]");
+            Console.WriteLine("Usage: peekwin hotkey [keys...] [--keys ctrl,s] [--app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--json]");
             return 0;
         }
 
@@ -868,7 +864,7 @@ public sealed class CommandShell
     {
         if (IsHelpRequest(args))
         {
-            Console.WriteLine($"Usage: peekwin {command} (--screen <n> | --title <text> | --handle <HWND> | --window <HWND>) [--output <path>] [--json]");
+            Console.WriteLine($"Usage: peekwin {command} (--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND>) [--output <path>] [--json]");
             return 0;
         }
 
@@ -919,6 +915,7 @@ public sealed class CommandShell
         var handle = options.TryGetHandle("handle");
         var windowHandle = options.TryGetHandle("window");
         var title = options.GetValueOrDefault("title");
+        var app = options.GetValueOrDefault("app");
 
         if (handle != 0 && windowHandle != 0 && handle != windowHandle)
         {
@@ -932,11 +929,12 @@ public sealed class CommandShell
 
         var targetCount = (screen is not null ? 1 : 0)
             + (handle != 0 ? 1 : 0)
-            + (!string.IsNullOrWhiteSpace(title) ? 1 : 0);
+            + (!string.IsNullOrWhiteSpace(title) ? 1 : 0)
+            + (!string.IsNullOrWhiteSpace(app) ? 1 : 0);
 
         if (targetCount > 1)
         {
-            throw new InvalidOperationException($"{command} accepts only one of --screen, --title, --handle, or --window.");
+            throw new InvalidOperationException($"{command} accepts only one of --screen, --app, --title, --handle, or --window.");
         }
 
         if (!allowScreen && screen is not null)
@@ -944,9 +942,9 @@ public sealed class CommandShell
             throw new InvalidOperationException($"{command} does not support --screen.");
         }
 
-        if (!allowWindow && (handle != 0 || !string.IsNullOrWhiteSpace(title)))
+        if (!allowWindow && (handle != 0 || !string.IsNullOrWhiteSpace(title) || !string.IsNullOrWhiteSpace(app)))
         {
-            throw new InvalidOperationException($"{command} does not support --title, --handle, or --window.");
+            throw new InvalidOperationException($"{command} does not support --app, --title, --handle, or --window.");
         }
 
         if (requireTarget && targetCount == 0)
@@ -954,7 +952,7 @@ public sealed class CommandShell
             throw new InvalidOperationException($"{command} requires a target.");
         }
 
-        return new TargetSelector(screen, handle, title);
+        return new TargetSelector(screen, handle, title, app);
     }
 
     private ResolvedTarget? ResolveBoundsTarget(string command, TargetSelector target)
@@ -993,10 +991,18 @@ public sealed class CommandShell
                 throw new InvalidOperationException($"No window matched title: {target.Title}");
             }
         }
+        else if (!string.IsNullOrWhiteSpace(target.App))
+        {
+            window = _windowService.FindWindowByApp(target.App);
+            if (window is null)
+            {
+                throw new InvalidOperationException($"No window matched app: {target.App}");
+            }
+        }
 
         return window is null
             ? null
-            : new ResolvedTarget("window", window.Title, window.Bounds, ParseHandle(window.Handle));
+            : new ResolvedTarget("window", window.Title, window.Bounds, ParseHandle(window.Handle), AppName: window.ProcessName);
     }
 
     private bool FocusTargetIfNeeded(string command, TargetSelector target, bool asJson)
@@ -1343,6 +1349,7 @@ public sealed class CommandShell
             {
                 kind = target.Kind,
                 label = target.Label,
+                app = target.AppName,
                 screen = target.ScreenIndex,
                 handle = target.WindowHandle is null ? null : $"0x{target.WindowHandle.Value.ToInt64():X}",
                 bounds = target.Bounds
@@ -1389,12 +1396,12 @@ public sealed class CommandShell
         Console.WriteLine();
         Console.WriteLine("Core commands:");
         Console.WriteLine("  peekwin window list [--all] [--app <name>] [--title <text>] [--json]");
-        Console.WriteLine("  peekwin window focus|inspect|close|minimize|maximize|restore (--handle <HWND> | --window <HWND> | --title <text>) [--json]");
+        Console.WriteLine("  peekwin window focus|inspect|close|minimize|maximize|restore (--app <name> | --title <text> | --handle <HWND> | --window <HWND>) [--json]");
         Console.WriteLine("  peekwin app list [--all] [--name <text>] [--json]");
         Console.WriteLine("  peekwin desktop list|current [--json]");
         Console.WriteLine("  peekwin desktop switch <index> [--delay-ms <n>] [--json]");
         Console.WriteLine("  peekwin screens [--json]");
-        Console.WriteLine("  peekwin image (--screen <n> | --title <text> | --handle <HWND>) [--output <path>] [--json]");
+        Console.WriteLine("  peekwin image (--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND>) [--output <path>] [--json]");
         Console.WriteLine("  peekwin screenshot ...   alias for 'peekwin image'");
         Console.WriteLine();
         Console.WriteLine("Pointer commands:");
@@ -1413,8 +1420,8 @@ public sealed class CommandShell
         Console.WriteLine("  peekwin sleep <milliseconds> [--json]");
         Console.WriteLine();
         Console.WriteLine("Target flags:");
-        Console.WriteLine("  pointer/image:      --screen <n> | --title <text> | --handle <HWND> | --window <HWND>");
-        Console.WriteLine("  keyboard/text:      --title <text> | --handle <HWND> | --window <HWND>");
+        Console.WriteLine("  pointer/image:      --screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND>");
+        Console.WriteLine("  keyboard/text:      --app <name> | --title <text> | --handle <HWND> | --window <HWND>");
         Console.WriteLine("  relative coordinates are offset from the selected screen or window");
         Console.WriteLine();
         Console.WriteLine("Timing flags:");
@@ -1431,12 +1438,12 @@ public sealed class CommandShell
     {
         Console.WriteLine("Window commands:");
         Console.WriteLine("  peekwin window list [--all] [--app <name>] [--title <text>] [--json]");
-        Console.WriteLine("  peekwin window focus (--handle <HWND> | --window <HWND> | --title <text>) [--json]");
-        Console.WriteLine("  peekwin window inspect (--handle <HWND> | --window <HWND> | --title <text>) [--json]");
-        Console.WriteLine("  peekwin window close (--handle <HWND> | --window <HWND> | --title <text>) [--json]");
-        Console.WriteLine("  peekwin window minimize (--handle <HWND> | --window <HWND> | --title <text>) [--json]");
-        Console.WriteLine("  peekwin window maximize (--handle <HWND> | --window <HWND> | --title <text>) [--json]");
-        Console.WriteLine("  peekwin window restore (--handle <HWND> | --window <HWND> | --title <text>) [--json]");
+        Console.WriteLine("  peekwin window focus (--app <name> | --title <text> | --handle <HWND> | --window <HWND>) [--json]");
+        Console.WriteLine("  peekwin window inspect (--app <name> | --title <text> | --handle <HWND> | --window <HWND>) [--json]");
+        Console.WriteLine("  peekwin window close (--app <name> | --title <text> | --handle <HWND> | --window <HWND>) [--json]");
+        Console.WriteLine("  peekwin window minimize (--app <name> | --title <text> | --handle <HWND> | --window <HWND>) [--json]");
+        Console.WriteLine("  peekwin window maximize (--app <name> | --title <text> | --handle <HWND> | --window <HWND>) [--json]");
+        Console.WriteLine("  peekwin window restore (--app <name> | --title <text> | --handle <HWND> | --window <HWND>) [--json]");
     }
 
     private static void PrintAppHelp()
@@ -1463,21 +1470,21 @@ public sealed class CommandShell
         Console.WriteLine("  peekwin scroll [--delta <n>] [--delta-x <n>] [--x <n> --y <n>] [target] [--json]");
         Console.WriteLine("  peekwin mouse down [--button left|right] [--x <n> --y <n>] [target] [--json]");
         Console.WriteLine("  peekwin mouse up [--button left|right] [--x <n> --y <n>] [target] [--json]");
-        Console.WriteLine("  target = --screen <n> | --title <text> | --handle <HWND> | --window <HWND>");
+        Console.WriteLine("  target = --screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND>");
     }
 
     private static void PrintHoldHelp()
     {
         Console.WriteLine("Hold commands:");
-        Console.WriteLine("  peekwin hold ctrl shift [--duration-ms <n>] [--title <text> | --handle <HWND>] [--json]");
-        Console.WriteLine("  peekwin hold --keys ctrl,shift [--duration-ms <n>] [--title <text> | --handle <HWND>] [--json]");
-        Console.WriteLine("  peekwin hold --button left|right [--duration-ms <n>] [--x <n> --y <n>] [--screen <n> | --title <text> | --handle <HWND>] [--json]");
+        Console.WriteLine("  peekwin hold ctrl shift [--duration-ms <n>] [--app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--json]");
+        Console.WriteLine("  peekwin hold --keys ctrl,shift [--duration-ms <n>] [--app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--json]");
+        Console.WriteLine("  peekwin hold --button left|right [--duration-ms <n>] [--x <n> --y <n>] [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--json]");
     }
 
     private static void PrintImageHelp()
     {
         Console.WriteLine("Image commands:");
-        Console.WriteLine("  peekwin image (--screen <n> | --title <text> | --handle <HWND> | --window <HWND>) [--output <path>] [--json]");
+        Console.WriteLine("  peekwin image (--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND>) [--output <path>] [--json]");
         Console.WriteLine("  peekwin screenshot ...             alias for 'peekwin image'");
         Console.WriteLine("  peekwin image info [--json]        alias for 'peekwin screens'");
     }
@@ -1486,9 +1493,9 @@ public sealed class CommandShell
 
     private sealed record ActionResultData(string Message, string? OutputPath, object? Details);
 
-    private sealed record TargetSelector(int? Screen, nint Handle, string? Title);
+    private sealed record TargetSelector(int? Screen, nint Handle, string? Title, string? App);
 
-    private sealed record ResolvedTarget(string Kind, string Label, RectDto Bounds, nint? WindowHandle = null, int? ScreenIndex = null);
+    private sealed record ResolvedTarget(string Kind, string Label, RectDto Bounds, nint? WindowHandle = null, int? ScreenIndex = null, string? AppName = null);
 }
 
 internal sealed class OptionSet
