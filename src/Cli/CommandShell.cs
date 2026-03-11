@@ -1277,13 +1277,23 @@ public sealed class CommandShell
         for (var index = 0; index < args.Length; index++)
         {
             var arg = args[index];
-            if (IsVerboseFlag(arg) && !LooksLikeOptionValue(args, index))
+            if (IsVerboseFlag(arg))
             {
                 verbose = true;
                 continue;
             }
 
             filtered.Add(arg);
+
+            if (!arg.StartsWith("--", StringComparison.Ordinal) || arg.Contains('=', StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (index + 1 < args.Length && !args[index + 1].StartsWith("--", StringComparison.Ordinal) && !IsVerboseFlag(args[index + 1]))
+            {
+                filtered.Add(args[++index]);
+            }
         }
 
         return (filtered.ToArray(), verbose);
@@ -1292,22 +1302,6 @@ public sealed class CommandShell
     private static bool IsVerboseFlag(string arg)
         => arg.Equals("--verbose", StringComparison.OrdinalIgnoreCase)
             || arg.Equals("-v", StringComparison.OrdinalIgnoreCase);
-
-    private static bool LooksLikeOptionValue(IReadOnlyList<string> args, int index)
-    {
-        if (index == 0)
-        {
-            return false;
-        }
-
-        var previous = args[index - 1];
-        return previous.StartsWith("--", StringComparison.Ordinal)
-            && !previous.Contains('=', StringComparison.Ordinal)
-            && !IsVerboseFlag(previous)
-            && !previous.Equals("--json", StringComparison.OrdinalIgnoreCase)
-            && !previous.Equals("--all", StringComparison.OrdinalIgnoreCase)
-            && !previous.Equals("--double", StringComparison.OrdinalIgnoreCase);
-    }
 
     private bool TryParseOptions(string command, IReadOnlyList<string> args, out OptionSet options)
     {
