@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text;
 using PeekWin.Infrastructure;
 using PeekWin.Models;
@@ -115,8 +116,6 @@ public sealed class WindowService
 
         NativeMethods.GetWindowThreadProcessId(hwnd, out var processId);
 
-        var elements = UiAutomationHelper.GetTopLevelChildren(hwnd);
-
         return new WindowInspection(
             FormatHandle(hwnd),
             GetWindowText(hwnd),
@@ -127,8 +126,7 @@ public sealed class WindowService
             NativeMethods.IsIconic(hwnd),
             NativeMethods.IsZoomed(hwnd),
             VirtualDesktopHelper.GetDesktopLabel(hwnd),
-            ToRectDto(rect),
-            elements);
+            ToRectDto(rect));
     }
 
     public CommandResult CloseWindow(nint hwnd)
@@ -142,6 +140,34 @@ public sealed class WindowService
 
     public CommandResult RestoreWindow(nint hwnd)
         => ApplyWindowAction(hwnd, "restore", static handle => NativeMethods.ShowWindow(handle, NativeMethods.SW_RESTORE));
+
+    public CommandResult? TryGetCaptureBounds(nint hwnd, out RectDto bounds)
+    {
+        bounds = default!;
+
+        if (hwnd == 0 || !NativeMethods.IsWindow(hwnd))
+        {
+            return CommandResult.Error($"Invalid or destroyed window handle: {FormatHandle(hwnd)}.");
+        }
+
+        if (NativeMethods.IsIconic(hwnd))
+        {
+            return CommandResult.Error($"Window {FormatHandle(hwnd)} is minimized and cannot be captured while minimized.");
+        }
+
+        if (TryGetExtendedFrameBounds(hwnd, out var frameRect) || NativeMethods.GetWindowRect(hwnd, out frameRect))
+        {
+            bounds = ToRectDto(frameRect);
+            if (bounds.Width <= 0 || bounds.Height <= 0)
+            {
+                return CommandResult.Error($"Window {FormatHandle(hwnd)} has invalid capture bounds {bounds.Width}x{bounds.Height}.");
+            }
+
+            return null;
+        }
+
+        return CommandResult.Error($"Could not read capture bounds for window {FormatHandle(hwnd)}.");
+    }
 
     public CommandResult CloseWindowByTitle(string title) => ApplyWindowTitleAction(title, CloseWindow);
 
@@ -252,6 +278,17 @@ public sealed class WindowService
 
     private static RectDto ToRectDto(NativeMethods.RECT rect)
         => new(rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top);
+
+    private static bool TryGetExtendedFrameBounds(nint hwnd, out NativeMethods.RECT rect)
+    {
+        var result = NativeMethods.DwmGetWindowAttribute(
+            hwnd,
+            NativeMethods.DWMWA_EXTENDED_FRAME_BOUNDS,
+            out rect,
+            Marshal.SizeOf<NativeMethods.RECT>());
+
+        return result == 0;
+    }
 
     private static string DescribeWindowState(nint hwnd)
     {

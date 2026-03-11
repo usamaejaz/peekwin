@@ -133,7 +133,7 @@ For pointer commands, coordinates are absolute by default. When you add `--scree
 
 peekwin now enables per-monitor DPI awareness at startup so cursor movement and capture bounds line up more reliably on mixed-scale multi-monitor setups.
 
-`peekwin image` requires exactly one target and captures only that monitor or window. Window-relative targeting also accepts `--app` when a process-name match is more convenient. `peekwin screenshot` remains as an alias.
+`peekwin image` requires exactly one target and captures only that monitor or window. Window-relative targeting also accepts `--app` when a process-name match is more convenient. Minimized windows are rejected instead of silently capturing the desktop area behind them. `peekwin screenshot` remains as an alias.
 
 ## Usage
 
