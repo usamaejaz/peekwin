@@ -11,13 +11,6 @@ public sealed record WindowInfo(
     bool IsMaximized,
     string DesktopLabel,
     RectDto Bounds);
-
-public sealed record AutomationElementInfo(
-    string Name,
-    string AutomationId,
-    string ControlType,
-    RectDto Bounds);
-
 public sealed record WindowInspection(
     string Handle,
     string Title,
@@ -28,8 +21,13 @@ public sealed record WindowInspection(
     bool IsMinimized,
     bool IsMaximized,
     string DesktopLabel,
-    RectDto Bounds,
-    IReadOnlyList<AutomationElementInfo> Elements);
+    RectDto Bounds);
+
+public sealed record AutomationElementInfo(
+    string Name,
+    string AutomationId,
+    string ControlType,
+    RectDto Bounds);
 
 public sealed record AppInfo(
     string Name,

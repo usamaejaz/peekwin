@@ -276,11 +276,6 @@ public sealed class CommandShell
         Console.WriteLine($"Visible: {inspection.IsVisible}");
         Console.WriteLine($"Minimized: {inspection.IsMinimized}");
         Console.WriteLine($"Maximized: {inspection.IsMaximized}");
-        Console.WriteLine("Top-level automation children:");
-        foreach (var element in inspection.Elements)
-        {
-            Console.WriteLine($"- {element.ControlType} | {element.Name} | AutomationId={element.AutomationId} | Bounds={FormatRect(element.Bounds)}");
-        }
 
         return 0;
     }
@@ -919,7 +914,21 @@ public sealed class CommandShell
             ?? Path.Combine(Environment.CurrentDirectory, $"peekwin-{DateTime.UtcNow:yyyyMMddHHmmss}.png");
         var target = ParseTarget(command, options, allowScreen: true, allowWindow: true, requireTarget: true);
         var resolvedTarget = ResolveBoundsTarget(command, target)!;
-        var result = _screenshotService.Capture(output, resolvedTarget.Bounds, new { target = ToTargetData(resolvedTarget), bounds = resolvedTarget.Bounds });
+
+        CommandResult result;
+        if (resolvedTarget.WindowHandle is not null)
+        {
+            var boundsResult = _windowService.TryGetCaptureBounds(resolvedTarget.WindowHandle.Value, out var captureBounds);
+            if (boundsResult is not null)
+            {
+                WriteResult(command, boundsResult, options.HasFlag("json"));
+                return boundsResult.Success ? 0 : 1;
+            }
+
+            resolvedTarget = resolvedTarget with { Bounds = captureBounds };
+        }
+
+        result = _screenshotService.Capture(output, resolvedTarget.Bounds, new { target = ToTargetData(resolvedTarget), bounds = resolvedTarget.Bounds });
 
         WriteResult(command, result, options.HasFlag("json"));
         return result.Success ? 0 : 1;
