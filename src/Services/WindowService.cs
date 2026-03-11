@@ -161,6 +161,16 @@ public sealed class WindowService
             return CommandResult.Error($"Window {FormatHandle(hwnd)} is minimized and cannot be captured while minimized.");
         }
 
+        if (!NativeMethods.IsWindowVisible(hwnd))
+        {
+            return CommandResult.Error($"Window {FormatHandle(hwnd)} is hidden and cannot be captured while hidden.");
+        }
+
+        if (IsWindowCloaked(hwnd))
+        {
+            return CommandResult.Error($"Window {FormatHandle(hwnd)} is cloaked and cannot be captured while cloaked.");
+        }
+
         if (TryGetExtendedFrameBounds(hwnd, out var frameRect) || NativeMethods.GetWindowRect(hwnd, out frameRect))
         {
             bounds = ToRectDto(frameRect);
@@ -312,6 +322,17 @@ public sealed class WindowService
             Marshal.SizeOf<NativeMethods.RECT>());
 
         return result == 0;
+    }
+
+    private static bool IsWindowCloaked(nint hwnd)
+    {
+        var result = NativeMethods.DwmGetWindowAttribute(
+            hwnd,
+            NativeMethods.DWMWA_CLOAKED,
+            out uint cloaked,
+            sizeof(uint));
+
+        return result == 0 && cloaked != 0;
     }
 
     private static string DescribeWindowState(nint hwnd)
