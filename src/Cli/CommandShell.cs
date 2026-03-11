@@ -918,7 +918,7 @@ public sealed class CommandShell
         var output = options.GetValueOrDefault("output")
             ?? Path.Combine(Environment.CurrentDirectory, $"peekwin-{DateTime.UtcNow:yyyyMMddHHmmss}.png");
         var target = ParseTarget(command, options, allowScreen: true, allowWindow: true, requireTarget: true);
-        var resolvedTarget = ResolveBoundsTarget(command, target)!;
+        var resolvedTarget = target.Screen is null ? ResolveCaptureWindowTarget(command, target)! : ResolveBoundsTarget(command, target)!;
 
         CommandResult result;
         if (resolvedTarget.WindowHandle is not null)
@@ -1028,6 +1028,30 @@ public sealed class CommandShell
     }
 
     private ResolvedTarget? ResolveWindowTarget(string command, TargetSelector target)
+        => ResolveWindowTarget(
+            command,
+            target,
+            _windowService.FindWindowByTitle,
+            _windowService.FindWindowByApp,
+            titleErrorPrefix: "No window matched title: ",
+            appErrorPrefix: "No window matched app: ");
+
+    private ResolvedTarget? ResolveCaptureWindowTarget(string command, TargetSelector target)
+        => ResolveWindowTarget(
+            command,
+            target,
+            _windowService.FindCapturableWindowByTitle,
+            _windowService.FindCapturableWindowByApp,
+            titleErrorPrefix: "No capturable window matched title: ",
+            appErrorPrefix: "No capturable window matched app: ");
+
+    private ResolvedTarget? ResolveWindowTarget(
+        string command,
+        TargetSelector target,
+        Func<string, WindowInfo?> findByTitle,
+        Func<string, WindowInfo?> findByApp,
+        string titleErrorPrefix,
+        string appErrorPrefix)
     {
         WindowInfo? window = null;
         if (target.Handle != 0)
@@ -1040,18 +1064,18 @@ public sealed class CommandShell
         }
         else if (!string.IsNullOrWhiteSpace(target.Title))
         {
-            window = _windowService.FindWindowByTitle(target.Title);
+            window = findByTitle(target.Title);
             if (window is null)
             {
-                throw new InvalidOperationException($"No window matched title: {target.Title}");
+                throw new InvalidOperationException($"{titleErrorPrefix}{target.Title}");
             }
         }
         else if (!string.IsNullOrWhiteSpace(target.App))
         {
-            window = _windowService.FindWindowByApp(target.App);
+            window = findByApp(target.App);
             if (window is null)
             {
-                throw new InvalidOperationException($"No window matched app: {target.App}");
+                throw new InvalidOperationException($"{appErrorPrefix}{target.App}");
             }
         }
 
