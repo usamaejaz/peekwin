@@ -2,7 +2,7 @@
 
 peekwin is a Windows-native CLI for window control, input automation, screen inspection, and targeted image capture.
 
-Current release: `0.1.0`
+Current release: `0.2.0`
 
 ## Current scope
 
@@ -78,6 +78,8 @@ Run the lightweight Windows smoke test:
 
 GitHub release publishing is automated for pushed version tags that match `v*`.
 
+`Directory.Build.props` is the source of truth for the release version. `peekwin version`, assembly/file metadata, the README release line, and release tags are expected to agree.
+
 Tag format:
 
 - `v1.0.0`
@@ -86,8 +88,8 @@ Tag format:
 Push a tag like this to trigger the release workflow:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 Produced release assets:
@@ -120,22 +122,24 @@ Pointer and image commands share the same target flags:
 
 - `--screen <n>`
 - `--app <name>`
-- `--app <name>`
 - `--title <text>`
 - `--handle <HWND>`
 - `--window <HWND>` as an alias for `--handle`
+- `--ref <id>` after `peekwin see`
 
 Keyboard and text-entry commands support window targeting:
 
+- `--app <name>`
 - `--title <text>`
 - `--handle <HWND>`
 - `--window <HWND>`
+- `--ref <id>` after `peekwin see`
 
-For pointer commands, coordinates are absolute by default. When you add `--screen`, `--app`, `--title`, `--handle`, or `--window`, coordinates become relative to that screen or window.
+Screen indexes are zero-based and match `peekwin screens` output. For pointer commands, coordinates are absolute by default. When you add `--screen`, `--app`, `--title`, `--handle`, `--window`, or `--ref`, coordinates become relative to that screen, window, or element.
 
 peekwin now enables per-monitor DPI awareness at startup so cursor movement and capture bounds line up more reliably on mixed-scale multi-monitor setups.
 
-`peekwin image` requires exactly one target and captures only that monitor or window. Window-relative targeting also accepts `--app` when a process-name match is more convenient. Minimized windows are rejected instead of silently capturing the desktop area behind them. `peekwin screenshot` remains as an alias.
+`peekwin image` requires exactly one target and captures only that monitor, window, or live UI element bounds resolved from `--ref`. Window-relative targeting also accepts `--app` when a process-name match is more convenient. Minimized windows are rejected instead of silently capturing the desktop area behind them. `peekwin screenshot` remains as an alias.
 
 ## Usage
 
@@ -210,7 +214,7 @@ peekwin see --all --json
 
 `see` inspects the UI Automation tree for a target window. Without a target it uses the current foreground window. By default it returns the root plus one child level in a compact mode that hides off-screen and 0x0 nodes, suppresses duplicate/passive duplicate noise, and keeps full element names plus full control type names like `ControlType.Pane`. Use `--all` or `--raw` to inspect the full saved tree. `--deep` expands farther and `--max-depth` gives explicit control. `--role` filters by normalized control type such as `button`, `edit`, or `pane`.
 
-After `peekwin see`, the latest UI snapshot is stored temporarily so later commands can target elements by `--ref`. Pointer, image, and keyboard/text commands accept `--ref <id>` and resolve it against the latest saved snapshot. Refs are strict: if the source window is gone, the saved handle now points at a different window identity, or the saved element path no longer resolves to the same element, PeekWin fails hard and asks you to run `peekwin see` again.
+After `peekwin see`, PeekWin writes an immutable snapshot payload plus an atomic current-pointer file under local app data so later commands can target elements by `--ref`. Pointer, image, and keyboard/text commands accept `--ref <id>` and resolve it against the latest saved snapshot in the current Windows session only. Refs are strict: if the source window is gone, the saved handle now points at a different window identity, the session changed, or the saved element path no longer resolves to the same element, PeekWin fails hard and asks you to run `peekwin see` again.
 
 ### List screens
 
@@ -222,6 +226,8 @@ peekwin screenshot info --json
 ```
 
 `peekwin image info` and `peekwin screenshot info` are aliases for `peekwin screens`.
+
+Screen indexes are zero-based.
 
 ### Virtual desktops
 
@@ -249,9 +255,10 @@ peekwin click --x 900 --y 540 --double --delay-ms 60
 Relative to a monitor or window:
 
 ```powershell
-peekwin move --screen 1 --x 100 --y 100
+peekwin move --screen 0 --x 100 --y 100
 peekwin click --title "Notepad" --x 20 --y 30
 peekwin click --handle 0x001F09A2 --x 40 --y 40
+peekwin move --ref e7 --x 5 --y 5
 ```
 
 If a click target is provided and `--x/--y` are omitted, peekwin clicks the center of that target.
@@ -260,7 +267,7 @@ If a click target is provided and `--x/--y` are omitted, peekwin clicks the cent
 
 ```powershell
 peekwin drag --x 100 --y 100 --to-x 400 --to-y 300
-peekwin drag --screen 1 --x 20 --y 20 --to-x 500 --to-y 200
+peekwin drag --screen 0 --x 20 --y 20 --to-x 500 --to-y 200
 peekwin drag --title "Notepad" --x 30 --y 60 --to-x 300 --to-y 60 --duration-ms 250 --steps 16
 peekwin drag --app notepad --x 30 --y 60 --to-x 300 --to-y 60 --duration-ms 250 --steps 16
 ```
@@ -269,7 +276,7 @@ peekwin drag --app notepad --x 30 --y 60 --to-x 300 --to-y 60 --duration-ms 250 
 
 ```powershell
 peekwin scroll --delta -120
-peekwin scroll --delta -360 --screen 1 --x 500 --y 500
+peekwin scroll --delta -360 --screen 0 --x 500 --y 500
 peekwin scroll --delta 240 --title "Notepad"
 peekwin scroll --delta-x 120 --handle 0x001F09A2
 ```
@@ -340,6 +347,7 @@ Element refs from `peekwin see` can be used directly in later commands:
 ```powershell
 peekwin see --app notepad --json
 peekwin click --ref e7
+peekwin move --ref e7 --x 5 --y 5
 peekwin type "hello" --ref e12
 peekwin image --ref e5 --output .\save-button.png
 ```
@@ -365,7 +373,7 @@ peekwin sleep --duration-ms 1000 --json
 Capture a specific monitor:
 
 ```powershell
-peekwin image --screen 1 --output .\monitor-1.png
+peekwin image --screen 0 --output .\monitor-0.png
 ```
 
 Capture a specific window:

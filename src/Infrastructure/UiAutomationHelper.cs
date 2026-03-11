@@ -17,53 +17,100 @@ internal static class UiAutomationHelper
 
     public static AutomationTreeResult GetTree(nint hwnd, int maxDepth)
     {
-        object? automationObject = null;
-        IUIAutomation? automation = null;
-        IUIAutomationElement? root = null;
-        IUIAutomationCondition? condition = null;
-
         try
         {
-            var type = Type.GetTypeFromCLSID(CUIAutomationClsid);
-            if (type is null)
-            {
-                return new AutomationTreeResult(false, Array.Empty<AutomationTreeNode>(), "UI Automation is unavailable on this system.");
-            }
-
-            automationObject = Activator.CreateInstance(type);
-            automation = automationObject as IUIAutomation;
-            if (automation is null)
-            {
-                return new AutomationTreeResult(false, Array.Empty<AutomationTreeNode>(), "Failed to initialize UI Automation.");
-            }
-
-            if (automation.ElementFromHandle(hwnd, out root) != 0 || root is null)
-            {
-                return new AutomationTreeResult(false, Array.Empty<AutomationTreeNode>(), $"Could not create a UI Automation root for window 0x{hwnd.ToInt64():X}.");
-            }
-
-            if (automation.CreateTrueCondition(out condition) != 0 || condition is null)
-            {
-                return new AutomationTreeResult(false, Array.Empty<AutomationTreeNode>(), "Failed to create the UI Automation traversal condition.");
-            }
-
+            using var session = UiAutomationSession.Create(hwnd);
             var nodes = new List<AutomationTreeNode>();
             var nextRef = 1;
-            Traverse(root, condition, maxDepth, depth: 0, parentRef: null, path: "0", nodes, ref nextRef);
+            Traverse(session.Root, session.Condition, maxDepth, depth: 0, parentRef: null, path: "0", nodes, ref nextRef);
             return new AutomationTreeResult(true, nodes);
         }
-        catch
+        catch (UiAutomationException ex)
         {
-            return new AutomationTreeResult(false, Array.Empty<AutomationTreeNode>(), "UI Automation traversal failed for the requested window.");
+            return new AutomationTreeResult(false, Array.Empty<AutomationTreeNode>(), ex.Message);
         }
-        finally
+        catch (COMException ex)
         {
-            ReleaseComObject(condition);
-            ReleaseComObject(condition);
-            ReleaseComObject(root);
-            ReleaseComObject(automation);
-            ReleaseComObject(automationObject);
+            return new AutomationTreeResult(false, Array.Empty<AutomationTreeNode>(), FormatComFailure("UI Automation traversal failed", ex));
         }
+        catch (Exception ex)
+        {
+            return new AutomationTreeResult(false, Array.Empty<AutomationTreeNode>(), $"UI Automation traversal failed ({ex.GetType().Name}: {ex.Message}).");
+        }
+    }
+
+    public static bool TryFocusElementByPath(nint hwnd, string path)
+        => TryFocusElementByPath(hwnd, path, out _);
+
+    public static bool TryFocusElementByPath(nint hwnd, string path, out string? error)
+        => TryWithElementByPath(
+            hwnd,
+            path,
+            static element =>
+            {
+                if (element.SetFocus() != 0)
+                {
+                    throw new UiAutomationException("UI Automation could not focus the target element.");
+                }
+
+                return true;
+            },
+            out _,
+            out error);
+
+    public static bool TryGetBoundsByPath(nint hwnd, string path, out RectDto bounds)
+        => TryGetBoundsByPath(hwnd, path, out bounds, out _);
+
+    public static bool TryGetBoundsByPath(nint hwnd, string path, out RectDto bounds, out string? error)
+    {
+        if (TryWithElementByPath(
+            hwnd,
+            path,
+            static element =>
+            {
+                if (element.get_CurrentBoundingRectangle(out var rect) != 0)
+                {
+                    throw new UiAutomationException("UI Automation could not read the target element bounds.");
+                }
+
+                return new RectDto(rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top);
+            },
+            out bounds,
+            out error))
+        {
+            return true;
+        }
+
+        bounds = default!;
+        return false;
+    }
+
+    public static bool TryGetNodeByPath(nint hwnd, string path, out AutomationTreeNode node)
+        => TryGetNodeByPath(hwnd, path, out node, out _);
+
+    public static bool TryGetNodeByPath(nint hwnd, string path, out AutomationTreeNode node, out string? error)
+    {
+        if (TryWithElementByPath(
+            hwnd,
+            path,
+            element =>
+            {
+                var segments = ParsePath(path);
+                return CreateNode(
+                    element,
+                    currentRef: string.Empty,
+                    parentRef: null,
+                    path,
+                    depth: Math.Max(segments.Length - 1, 0));
+            },
+            out node,
+            out error))
+        {
+            return true;
+        }
+
+        node = default!;
+        return false;
     }
 
     private static void Traverse(
@@ -120,13 +167,13 @@ internal static class UiAutomationHelper
 
     private static AutomationTreeNode CreateNode(IUIAutomationElement element, string currentRef, string? parentRef, string path, int depth)
     {
-        element.get_CurrentName(out var name);
-        element.get_CurrentAutomationId(out var automationId);
-        element.get_CurrentControlType(out var controlType);
-        element.get_CurrentBoundingRectangle(out var bounds);
-        element.get_CurrentIsKeyboardFocusable(out var isKeyboardFocusable);
-        element.get_CurrentIsEnabled(out var isEnabled);
-        element.get_CurrentIsOffscreen(out var isOffscreen);
+        var name = ReadBstr(element.get_CurrentName);
+        var automationId = ReadBstr(element.get_CurrentAutomationId);
+        var controlType = ReadInt(element.get_CurrentControlType);
+        var bounds = ReadRect(element.get_CurrentBoundingRectangle);
+        var isKeyboardFocusable = ReadBool(element.get_CurrentIsKeyboardFocusable);
+        var isEnabled = ReadBool(element.get_CurrentIsEnabled);
+        var isOffscreen = ReadBool(element.get_CurrentIsOffscreen);
 
         var controlTypeName = GetControlTypeName(controlType);
         return new AutomationTreeNode(
@@ -134,14 +181,14 @@ internal static class UiAutomationHelper
             parentRef,
             path,
             depth,
-            name ?? string.Empty,
-            automationId ?? string.Empty,
+            name,
+            automationId,
             controlTypeName,
             NormalizeRole(controlTypeName),
             new RectDto(bounds.Left, bounds.Top, bounds.Right - bounds.Left, bounds.Bottom - bounds.Top),
-            isKeyboardFocusable != 0,
-            isEnabled != 0,
-            isOffscreen != 0);
+            isKeyboardFocusable,
+            isEnabled,
+            isOffscreen);
     }
 
     private static string NormalizeRole(string controlTypeName)
@@ -149,137 +196,148 @@ internal static class UiAutomationHelper
             ? controlTypeName["ControlType.".Length..].ToLowerInvariant()
             : controlTypeName.ToLowerInvariant();
 
-    public static bool TryFocusElementByPath(nint hwnd, string path)
-        => WithElementByPath(hwnd, path, static element => element.SetFocus() == 0);
-
-    public static bool TryGetBoundsByPath(nint hwnd, string path, out RectDto bounds)
+    private static bool TryWithElementByPath<T>(
+        nint hwnd,
+        string path,
+        Func<IUIAutomationElement, T> selector,
+        out T result,
+        out string? error)
     {
-        bounds = default!;
-        var result = WithElementByPath(hwnd, path, static element =>
-        {
-            if (element.get_CurrentBoundingRectangle(out var rect) != 0)
-            {
-                return null;
-            }
+        result = default!;
+        error = null;
 
-            return new RectDto(rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top);
-        });
-
-        if (result is null)
-        {
-            return false;
-        }
-
-        bounds = result;
-        return true;
-    }
-
-    public static bool TryGetNodeByPath(nint hwnd, string path, out AutomationTreeNode node)
-    {
-        node = default!;
-        var result = WithElementByPath(hwnd, path, element =>
-        {
-            var segments = path.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            return CreateNode(
-                element,
-                currentRef: string.Empty,
-                parentRef: null,
-                path,
-                depth: Math.Max(segments.Length - 1, 0));
-        });
-
-        if (result is null)
-        {
-            return false;
-        }
-
-        node = result;
-        return true;
-    }
-
-    private static T? WithElementByPath<T>(nint hwnd, string path, Func<IUIAutomationElement, T?> selector)
-    {
-        object? automationObject = null;
-        IUIAutomation? automation = null;
-        IUIAutomationElement? root = null;
-        IUIAutomationCondition? condition = null;
         try
         {
-            var type = Type.GetTypeFromCLSID(CUIAutomationClsid);
-            if (type is null)
-            {
-                return default;
-            }
-
-            automationObject = Activator.CreateInstance(type);
-            automation = automationObject as IUIAutomation;
-            if (automation is null || automation.ElementFromHandle(hwnd, out root) != 0 || root is null)
-            {
-                return default;
-            }
-
-            if (automation.CreateTrueCondition(out condition) != 0 || condition is null)
-            {
-                return default;
-            }
-
-            var current = root;
-            var segments = path.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            for (var segmentIndex = 1; segmentIndex < segments.Length; segmentIndex++)
-            {
-                if (!int.TryParse(segments[segmentIndex], out var childIndex))
-                {
-                    return default;
-                }
-
-                if (current.FindAll(TreeScope.Children, condition, out var children) != 0 || children is null)
-                {
-                    return default;
-                }
-
-                try
-                {
-                    if (children.GetElement(childIndex, out var child) != 0 || child is null)
-                    {
-                        return default;
-                    }
-
-                    if (!ReferenceEquals(current, root))
-                    {
-                        ReleaseComObject(current);
-                    }
-
-                    current = child;
-                }
-                finally
-                {
-                    ReleaseComObject(children);
-                }
-            }
+            using var session = UiAutomationSession.Create(hwnd);
+            var segments = ParsePath(path);
+            var current = session.Root;
+            var ownsCurrent = false;
 
             try
             {
-                return selector(current);
+                for (var segmentIndex = 1; segmentIndex < segments.Length; segmentIndex++)
+                {
+                    var childIndex = segments[segmentIndex];
+                    if (current.FindAll(TreeScope.Children, session.Condition, out var children) != 0 || children is null)
+                    {
+                        throw new UiAutomationException(
+                            $"UI Automation could not enumerate children for path segment {segmentIndex} of `{path}`.");
+                    }
+
+                    try
+                    {
+                        if (children.get_Length(out var length) != 0)
+                        {
+                            throw new UiAutomationException(
+                                $"UI Automation could not read child count for path segment {segmentIndex} of `{path}`.");
+                        }
+
+                        if (childIndex < 0 || childIndex >= length)
+                        {
+                            throw new UiAutomationException(
+                                $"Saved UI path `{path}` is out of range at segment {segmentIndex} (requested child {childIndex}, found {length}).");
+                        }
+
+                        if (children.GetElement(childIndex, out var child) != 0 || child is null)
+                        {
+                            throw new UiAutomationException(
+                                $"UI Automation could not resolve child {childIndex} for path segment {segmentIndex} of `{path}`.");
+                        }
+
+                        if (ownsCurrent)
+                        {
+                            ReleaseComObject(current);
+                        }
+
+                        current = child;
+                        ownsCurrent = true;
+                    }
+                    finally
+                    {
+                        ReleaseComObject(children);
+                    }
+                }
+
+                result = selector(current);
+                return true;
             }
             finally
             {
-                if (!ReferenceEquals(current, root))
+                if (ownsCurrent)
                 {
                     ReleaseComObject(current);
                 }
             }
         }
-        catch
+        catch (UiAutomationException ex)
         {
-            return default;
+            error = ex.Message;
+            return false;
         }
-        finally
+        catch (COMException ex)
         {
-            ReleaseComObject(root);
-            ReleaseComObject(automation);
-            ReleaseComObject(automationObject);
+            error = FormatComFailure("UI Automation path lookup failed", ex);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            error = $"UI Automation path lookup failed ({ex.GetType().Name}: {ex.Message}).";
+            return false;
         }
     }
+
+    private static int[] ParsePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            throw new UiAutomationException("Saved UI path is missing.");
+        }
+
+        var segments = path
+            .Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select((segment, index) =>
+            {
+                if (!int.TryParse(segment, out var parsed) || parsed < 0)
+                {
+                    throw new UiAutomationException($"Saved UI path `{path}` contains an invalid segment at index {index}.");
+                }
+
+                return parsed;
+            })
+            .ToArray();
+
+        if (segments.Length == 0 || segments[0] != 0)
+        {
+            throw new UiAutomationException($"Saved UI path `{path}` is invalid.");
+        }
+
+        return segments;
+    }
+
+    private static string ReadBstr(StringPropertyGetter getter)
+    {
+        return getter(out var value) == 0 && value is not null
+            ? value
+            : string.Empty;
+    }
+
+    private static int ReadInt(IntPropertyGetter getter)
+    {
+        return getter(out var value) == 0 ? value : 0;
+    }
+
+    private static bool ReadBool(IntPropertyGetter getter)
+    {
+        return getter(out var value) == 0 && value != 0;
+    }
+
+    private static NativeMethods.RECT ReadRect(RectPropertyGetter getter)
+    {
+        return getter(out var value) == 0 ? value : default;
+    }
+
+    private static string FormatComFailure(string prefix, COMException ex)
+        => $"{prefix} (HRESULT 0x{unchecked((uint)ex.HResult):X8}: {ex.Message}).";
 
     private static string GetControlTypeName(int controlType)
         => controlType switch
@@ -332,9 +390,108 @@ internal static class UiAutomationHelper
     {
         if (value is not null && Marshal.IsComObject(value))
         {
-            Marshal.FinalReleaseComObject(value);
+            try
+            {
+                Marshal.FinalReleaseComObject(value);
+            }
+            catch
+            {
+            }
         }
     }
+
+    private sealed class UiAutomationSession : IDisposable
+    {
+        private object? _automationObject;
+        private bool _disposed;
+
+        private UiAutomationSession(object automationObject, IUIAutomation automation, IUIAutomationElement root, IUIAutomationCondition condition)
+        {
+            _automationObject = automationObject;
+            Automation = automation;
+            Root = root;
+            Condition = condition;
+        }
+
+        public IUIAutomation Automation { get; }
+
+        public IUIAutomationElement Root { get; }
+
+        public IUIAutomationCondition Condition { get; }
+
+        public static UiAutomationSession Create(nint hwnd)
+        {
+            if (hwnd == 0)
+            {
+                throw new UiAutomationException("UI Automation requires a non-zero window handle.");
+            }
+
+            var type = Type.GetTypeFromCLSID(CUIAutomationClsid);
+            if (type is null)
+            {
+                throw new UiAutomationException("UI Automation is unavailable on this system.");
+            }
+
+            var automationObject = Activator.CreateInstance(type)
+                ?? throw new UiAutomationException("Failed to initialize UI Automation.");
+
+            try
+            {
+                if (automationObject is not IUIAutomation automation)
+                {
+                    throw new UiAutomationException("Failed to initialize UI Automation.");
+                }
+
+                if (automation.ElementFromHandle(hwnd, out var root) != 0 || root is null)
+                {
+                    throw new UiAutomationException($"Could not create a UI Automation root for window 0x{hwnd.ToInt64():X}.");
+                }
+
+                try
+                {
+                    if (automation.CreateTrueCondition(out var condition) != 0 || condition is null)
+                    {
+                        throw new UiAutomationException("Failed to create the UI Automation traversal condition.");
+                    }
+
+                    return new UiAutomationSession(automationObject, automation, root, condition);
+                }
+                catch
+                {
+                    ReleaseComObject(root);
+                    throw;
+                }
+            }
+            catch
+            {
+                ReleaseComObject(automationObject);
+                throw;
+            }
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            ReleaseComObject(Condition);
+            ReleaseComObject(Root);
+            ReleaseComObject(Automation);
+            ReleaseComObject(_automationObject);
+            _automationObject = null;
+        }
+    }
+
+    private sealed class UiAutomationException(string message) : Exception(message);
+
+    private delegate int StringPropertyGetter([MarshalAs(UnmanagedType.BStr)] out string value);
+
+    private delegate int IntPropertyGetter(out int value);
+
+    private delegate int RectPropertyGetter(out NativeMethods.RECT value);
 
     private enum TreeScope
     {

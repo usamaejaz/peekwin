@@ -132,6 +132,12 @@ public sealed class CommandShell
             case "help":
             case "--help":
             case "-h":
+                if (args.Count > 1)
+                {
+                    PrintRequestedHelp(args.Skip(1).ToArray());
+                    return;
+                }
+
                 PrintHelp();
                 return;
             case "window":
@@ -143,8 +149,35 @@ public sealed class CommandShell
             case "desktop":
                 PrintDesktopHelp();
                 return;
+            case "screens":
+                PrintScreensHelp();
+                return;
+            case "move":
+                PrintMoveHelp();
+                return;
+            case "click":
+                PrintClickHelp();
+                return;
+            case "drag":
+                PrintDragHelp();
+                return;
+            case "scroll":
+                PrintScrollHelp();
+                return;
             case "mouse":
                 PrintMouseHelp();
+                return;
+            case "type":
+                PrintTypeHelp();
+                return;
+            case "paste":
+                PrintPasteHelp();
+                return;
+            case "press":
+                PrintPressHelp();
+                return;
+            case "hotkey":
+                PrintHotkeyHelp();
                 return;
             case "hold":
                 PrintHoldHelp();
@@ -154,6 +187,12 @@ public sealed class CommandShell
                 return;
             case "see":
                 PrintSeeHelp();
+                return;
+            case "sleep":
+                PrintSleepHelp();
+                return;
+            case "version":
+                PrintVersionHelp();
                 return;
             case "image":
             case "screenshot":
@@ -458,7 +497,7 @@ public sealed class CommandShell
         const string command = "screens";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin screens [--json]");
+            PrintScreensHelp();
             return 0;
         }
 
@@ -477,6 +516,7 @@ public sealed class CommandShell
         }
 
         Console.WriteLine($"Virtual desktop: {FormatRect(layout.VirtualBounds)}");
+        Console.WriteLine("Screen indexes are zero-based and match the values accepted by --screen.");
         foreach (var screen in layout.Screens)
         {
             Console.WriteLine($"Screen {screen.Index}: {screen.DeviceName} {(screen.IsPrimary ? "[primary]" : string.Empty)} bounds={FormatRect(screen.Bounds)} work={FormatRect(screen.WorkArea)}".Trim());
@@ -490,7 +530,7 @@ public sealed class CommandShell
         const string command = "click";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin click [--x <n> --y <n>] [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--button left|right] [--double] [--delay-ms <n>] [--json]");
+            PrintClickHelp();
             return 0;
         }
 
@@ -522,7 +562,7 @@ public sealed class CommandShell
         const string command = "move";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin move --x <n> --y <n> [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--duration-ms <n>] [--steps <n>] [--json]");
+            PrintMoveHelp();
             return 0;
         }
 
@@ -553,7 +593,7 @@ public sealed class CommandShell
         const string command = "drag";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin drag [--x <n> --y <n>] --to-x <n> --to-y <n> [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--button left|right] [--duration-ms <n>] [--steps <n>] [--json]");
+            PrintDragHelp();
             return 0;
         }
 
@@ -596,7 +636,7 @@ public sealed class CommandShell
         const string command = "scroll";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin scroll [--delta <n>] [--delta-x <n>] [--x <n> --y <n>] [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--json]");
+            PrintScrollHelp();
             return 0;
         }
 
@@ -661,7 +701,7 @@ public sealed class CommandShell
     {
         if (IsHelpRequest(args))
         {
-            Console.WriteLine($"Usage: peekwin {command} [--button left|right] [--x <n> --y <n>] [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--json]");
+            PrintMouseHelp();
             return 0;
         }
 
@@ -701,7 +741,7 @@ public sealed class CommandShell
         const string command = "type";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin type [text] [--text <value>] [--delay-ms <n>] [--method type|paste] [--app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--json]");
+            PrintTypeHelp();
             return 0;
         }
 
@@ -746,7 +786,7 @@ public sealed class CommandShell
         const string command = "paste";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin paste [text] [--text <value>] [--delay-ms <n>] [--app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--json]");
+            PrintPasteHelp();
             return 0;
         }
 
@@ -779,7 +819,7 @@ public sealed class CommandShell
         const string command = "press";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin press [key] [--key <name>] [--repeat <n>] [--delay-ms <n>] [--app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--json]");
+            PrintPressHelp();
             return 0;
         }
 
@@ -813,7 +853,7 @@ public sealed class CommandShell
         const string command = "hotkey";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin hotkey [keys...] [--keys ctrl,s] [--app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--json]");
+            PrintHotkeyHelp();
             return 0;
         }
 
@@ -905,11 +945,17 @@ public sealed class CommandShell
 
         var tree = traversal.Nodes;
         var inspection = _windowService.InspectWindow(resolvedTarget.WindowHandle!.Value);
-        _automationSnapshotService.SaveSnapshot(inspection, maxDepth, tree);
+        var snapshot = _automationSnapshotService.SaveSnapshot(inspection, maxDepth, tree);
         var elements = ApplySeeFilters(tree, filters).ToList();
         var data = new
         {
             target = ToTargetData(resolvedTarget),
+            snapshot = new
+            {
+                id = snapshot.SnapshotId,
+                capturedAt = snapshot.CapturedAt,
+                sessionId = snapshot.CapturedBySessionId
+            },
             maxDepth,
             filters = new
             {
@@ -930,6 +976,7 @@ public sealed class CommandShell
         }
 
         Console.WriteLine($"Target: {resolvedTarget.Label}");
+        Console.WriteLine($"Snapshot: {snapshot.SnapshotId}");
         Console.WriteLine($"Depth: {maxDepth}");
         Console.WriteLine($"Mode: {(filters.Compact ? "compact" : "all")} ({elements.Count}/{tree.Count} shown)");
         Console.WriteLine($"Filters: role={filters.Role ?? "*"} name={filters.Name ?? "*"}");
@@ -1023,7 +1070,7 @@ public sealed class CommandShell
     {
         if (IsHelpRequest(args))
         {
-            Console.WriteLine($"Usage: peekwin {command} (--screen <n> | [--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) [--output <path>] [--json]");
+            PrintImageHelp();
             return 0;
         }
 
@@ -1039,7 +1086,7 @@ public sealed class CommandShell
         var resolvedTarget = target.Screen is null ? ResolveCaptureWindowTarget(command, target)! : ResolveBoundsTarget(command, target)!;
 
         CommandResult result;
-        if (resolvedTarget.WindowHandle is not null)
+        if (resolvedTarget.Kind == "window" && resolvedTarget.WindowHandle is not null)
         {
             var boundsResult = _windowService.TryGetCaptureBounds(resolvedTarget.WindowHandle.Value, out var captureBounds);
             if (boundsResult is not null)
@@ -1062,8 +1109,7 @@ public sealed class CommandShell
         const string command = "sleep";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin sleep <milliseconds> [--json]");
-            Console.WriteLine("       peekwin sleep --duration-ms <milliseconds> [--json]");
+            PrintSleepHelp();
             return 0;
         }
 
@@ -1155,7 +1201,7 @@ public sealed class CommandShell
             var layout = _screenshotService.GetScreenLayout();
             if (target.Screen < 0 || target.Screen >= layout.Screens.Count)
             {
-                throw new InvalidOperationException($"Screen index {target.Screen} is out of range. Found {layout.Screens.Count} screens.");
+                throw new InvalidOperationException($"Screen index {target.Screen} is out of range. Screen indexes are zero-based; valid values are 0 through {layout.Screens.Count - 1}.");
             }
 
             var screen = layout.Screens[target.Screen.Value];
@@ -1248,9 +1294,10 @@ public sealed class CommandShell
             throw new InvalidOperationException($"UI ref {reference} is stale: source window changed since the last `peekwin see`. Run `peekwin see` again.");
         }
 
-        if (string.IsNullOrWhiteSpace(target.Path) || !UiAutomationHelper.TryGetNodeByPath(target.WindowHandle, target.Path!, out var liveNode))
+        string? lookupError = null;
+        if (string.IsNullOrWhiteSpace(target.Path) || !UiAutomationHelper.TryGetNodeByPath(target.WindowHandle, target.Path!, out var liveNode, out lookupError))
         {
-            throw new InvalidOperationException($"UI ref {reference} is stale: element no longer exists at the saved path. Run `peekwin see` again.");
+            throw new InvalidOperationException($"UI ref {reference} is stale: {lookupError ?? "element no longer exists at the saved path"}. Run `peekwin see` again.");
         }
 
         if (!string.Equals(liveNode.ControlType, target.ControlType, StringComparison.Ordinal)
@@ -1280,14 +1327,15 @@ public sealed class CommandShell
 
         if (target.Kind == "element")
         {
-            if (!string.IsNullOrWhiteSpace(target.Path) && UiAutomationHelper.TryFocusElementByPath(target.WindowHandle.Value, target.Path!))
+            string? focusError = null;
+            if (!string.IsNullOrWhiteSpace(target.Path) && UiAutomationHelper.TryFocusElementByPath(target.WindowHandle.Value, target.Path!, out focusError))
             {
                 return true;
             }
 
             WriteResult(
                 command,
-                CommandResult.Error("Target UI element could not be focused because the saved ref is no longer valid. Run `peekwin see` again."),
+                CommandResult.Error($"Target UI element could not be focused because the saved ref is no longer valid{FormatDiagnosticSuffix(focusError)}. Run `peekwin see` again."),
                 asJson);
             return false;
         }
@@ -1914,6 +1962,9 @@ public sealed class CommandShell
         return $"{relativeX},{relativeY} relative to {target.Label} ({x},{y} absolute)";
     }
 
+    private static string FormatDiagnosticSuffix(string? diagnostic)
+        => string.IsNullOrWhiteSpace(diagnostic) ? string.Empty : $": {diagnostic}";
+
     private static object? ToTargetData(ResolvedTarget? target)
         => target is null
             ? null
@@ -2000,6 +2051,7 @@ public sealed class CommandShell
         Console.WriteLine("  pointer/image:      --screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>");
         Console.WriteLine("  keyboard/text:      --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>");
         Console.WriteLine("  --app and --title can be combined to narrow a window match");
+        Console.WriteLine("  screen indexes are zero-based and match `peekwin screens` output");
         Console.WriteLine("  relative coordinates are offset from the selected screen or window");
         Console.WriteLine();
         Console.WriteLine("Timing flags:");
@@ -2028,7 +2080,6 @@ public sealed class CommandShell
     {
         Console.WriteLine("App commands:");
         Console.WriteLine("  peekwin app list [--name <text>] [--json]");
-        Console.WriteLine("  peekwin see [[--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>] [--deep | --max-depth <n>] [--role <name>] [--name <text>] [--all|--raw] [--json]");
     }
 
     private static void PrintDesktopHelp()
@@ -2040,6 +2091,22 @@ public sealed class CommandShell
         Console.WriteLine("  peekwin desktop switch --index <n> [--delay-ms <n>] [--json]");
     }
 
+    private static void PrintVersionHelp()
+    {
+        Console.WriteLine("Version command:");
+        Console.WriteLine("  peekwin version");
+        Console.WriteLine("  peekwin --verbose version");
+    }
+
+    private static void PrintScreensHelp()
+    {
+        Console.WriteLine("Screen commands:");
+        Console.WriteLine("  peekwin screens [--json]");
+        Console.WriteLine("  peekwin image info [--json]");
+        Console.WriteLine("  peekwin screenshot info [--json]");
+        Console.WriteLine("  screen indexes are zero-based and match the values accepted by --screen");
+    }
+
     private static void PrintMouseHelp()
     {
         Console.WriteLine("Mouse commands:");
@@ -2049,7 +2116,35 @@ public sealed class CommandShell
         Console.WriteLine("  peekwin scroll [--delta <n>] [--delta-x <n>] [--x <n> --y <n>] [target] [--json]");
         Console.WriteLine("  peekwin mouse down [--button left|right] [--x <n> --y <n>] [target] [--json]");
         Console.WriteLine("  peekwin mouse up [--button left|right] [--x <n> --y <n>] [target] [--json]");
-        Console.WriteLine("  target = --screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND>");
+        Console.WriteLine("  target = --screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>");
+        Console.WriteLine("  screen indexes are zero-based and match `peekwin screens` output");
+    }
+
+    private static void PrintMoveHelp()
+    {
+        Console.WriteLine("Move command:");
+        Console.WriteLine("  peekwin move --x <n> --y <n> [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--duration-ms <n>] [--steps <n>] [--json]");
+        Console.WriteLine("  screen indexes are zero-based");
+    }
+
+    private static void PrintClickHelp()
+    {
+        Console.WriteLine("Click command:");
+        Console.WriteLine("  peekwin click [--x <n> --y <n>] [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--button left|right] [--double] [--delay-ms <n>] [--json]");
+        Console.WriteLine("  if --double is set, --delay-ms is applied between the two clicks");
+    }
+
+    private static void PrintDragHelp()
+    {
+        Console.WriteLine("Drag command:");
+        Console.WriteLine("  peekwin drag [--x <n> --y <n>] --to-x <n> --to-y <n> [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--button left|right] [--duration-ms <n>] [--steps <n>] [--json]");
+        Console.WriteLine("  screen indexes are zero-based");
+    }
+
+    private static void PrintScrollHelp()
+    {
+        Console.WriteLine("Scroll command:");
+        Console.WriteLine("  peekwin scroll [--delta <n>] [--delta-x <n>] [--x <n> --y <n>] [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--json]");
     }
 
     private static void PrintSeeHelp()
@@ -2059,15 +2154,41 @@ public sealed class CommandShell
         Console.WriteLine("  without a target, see uses the current foreground window");
         Console.WriteLine("  default mode is compact: hides off-screen and 0x0 nodes, suppresses duplicate/passive duplicates, and keeps full names/control types");
         Console.WriteLine("  use --all or --raw for the full tree");
+        Console.WriteLine("  successful runs update an atomic current ref pointer to an immutable snapshot payload");
+        Console.WriteLine("  refs are session-bound and revalidated against the live window and element identity before use");
         Console.WriteLine("  examples: peekwin see --title \"Notepad\"");
         Console.WriteLine("            peekwin see --app chrome --deep --json");
         Console.WriteLine("            peekwin see --all --role button --name Save --json");
     }
 
+    private static void PrintTypeHelp()
+    {
+        Console.WriteLine("Type command:");
+        Console.WriteLine("  peekwin type [text] [--text <value>] [--delay-ms <n>] [--method type|paste] [--app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--json]");
+    }
+
+    private static void PrintPasteHelp()
+    {
+        Console.WriteLine("Paste command:");
+        Console.WriteLine("  peekwin paste [text] [--text <value>] [--delay-ms <n>] [--app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--json]");
+    }
+
+    private static void PrintPressHelp()
+    {
+        Console.WriteLine("Press command:");
+        Console.WriteLine("  peekwin press [key] [--key <name>] [--repeat <n>] [--delay-ms <n>] [--app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--json]");
+    }
+
+    private static void PrintHotkeyHelp()
+    {
+        Console.WriteLine("Hotkey command:");
+        Console.WriteLine("  peekwin hotkey [keys...] [--keys ctrl,s] [--app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--json]");
+    }
+
     private static void PrintKeysHelp()
     {
         Console.WriteLine("Key sequence commands:");
-        Console.WriteLine("  peekwin keys [steps...] [--steps <value>] [--delay-ms <n>] [--app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--json]");
+        Console.WriteLine("  peekwin keys [steps...] [--steps <value>] [--delay-ms <n>] [--app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--json]");
         Console.WriteLine("  step forms: <key>, tap:<key>, down:<key>, up:<key>, sleep:<ms>");
         Console.WriteLine("  bare key steps default to tap:<key>");
         Console.WriteLine("  example: peekwin keys down:alt tap:tab tap:right tap:right up:alt --app explorer");
@@ -2076,8 +2197,8 @@ public sealed class CommandShell
     private static void PrintHoldHelp()
     {
         Console.WriteLine("Hold commands:");
-        Console.WriteLine("  peekwin hold ctrl shift [--duration-ms <n>] [--app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--json]");
-        Console.WriteLine("  peekwin hold --keys ctrl,shift [--duration-ms <n>] [--app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--json]");
+        Console.WriteLine("  peekwin hold ctrl shift [--duration-ms <n>] [--app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--json]");
+        Console.WriteLine("  peekwin hold --keys ctrl,shift [--duration-ms <n>] [--app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--json]");
         Console.WriteLine("  peekwin hold --button left|right [--duration-ms <n>] [--x <n> --y <n>] [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--json]");
     }
 
@@ -2087,6 +2208,14 @@ public sealed class CommandShell
         Console.WriteLine("  peekwin image (--screen <n> | [--app <name>] [--title <text>] | --handle <HWND> | --window <HWND> | --ref <id>) [--output <path>] [--json]");
         Console.WriteLine("  peekwin screenshot ...             alias for 'peekwin image'");
         Console.WriteLine("  peekwin image info [--json]        alias for 'peekwin screens'");
+        Console.WriteLine("  screen indexes are zero-based; --ref captures the live element bounds");
+    }
+
+    private static void PrintSleepHelp()
+    {
+        Console.WriteLine("Sleep command:");
+        Console.WriteLine("  peekwin sleep <milliseconds> [--json]");
+        Console.WriteLine("  peekwin sleep --duration-ms <milliseconds> [--json]");
     }
 
     private sealed record SeeFilterOptions(bool Compact, string? Role, string? Name);

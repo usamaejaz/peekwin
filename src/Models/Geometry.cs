@@ -11,4 +11,5 @@ public sealed record ScreenInfo(
 
 public sealed record ScreenLayoutInfo(
     RectDto VirtualBounds,
+    int ScreenIndexBase,
     IReadOnlyList<ScreenInfo> Screens);
