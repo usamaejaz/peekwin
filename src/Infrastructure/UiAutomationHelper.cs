@@ -10,90 +10,141 @@ internal static class UiAutomationHelper
     private static readonly Guid CUIAutomationClsid = new("FF48DBA4-60EF-4201-AA87-54103EEF594E");
 
     public static IReadOnlyList<AutomationElementInfo> GetTopLevelChildren(nint hwnd)
+        => GetTree(hwnd, maxDepth: 1)
+            .Where(node => node.Depth == 1)
+            .Select(node => new AutomationElementInfo(node.Name, node.AutomationId, node.ControlType, node.Bounds))
+            .ToList();
+
+    public static IReadOnlyList<AutomationTreeNode> GetTree(nint hwnd, int maxDepth)
     {
         object? automationObject = null;
         IUIAutomation? automation = null;
         IUIAutomationElement? root = null;
         IUIAutomationCondition? condition = null;
-        IUIAutomationElementArray? children = null;
 
         try
         {
             var type = Type.GetTypeFromCLSID(CUIAutomationClsid);
             if (type is null)
             {
-                return Array.Empty<AutomationElementInfo>();
+                return Array.Empty<AutomationTreeNode>();
             }
 
             automationObject = Activator.CreateInstance(type);
             automation = automationObject as IUIAutomation;
             if (automation is null)
             {
-                return Array.Empty<AutomationElementInfo>();
+                return Array.Empty<AutomationTreeNode>();
             }
 
             if (automation.ElementFromHandle(hwnd, out root) != 0 || root is null)
             {
-                return Array.Empty<AutomationElementInfo>();
+                return Array.Empty<AutomationTreeNode>();
             }
 
             if (automation.CreateTrueCondition(out condition) != 0 || condition is null)
             {
-                return Array.Empty<AutomationElementInfo>();
+                return Array.Empty<AutomationTreeNode>();
             }
 
-            if (root.FindAll(TreeScope.Children, condition, out children) != 0 || children is null)
-            {
-                return Array.Empty<AutomationElementInfo>();
-            }
-
-            if (children.get_Length(out var length) != 0 || length <= 0)
-            {
-                return Array.Empty<AutomationElementInfo>();
-            }
-
-            var elements = new List<AutomationElementInfo>(length);
-            for (var i = 0; i < length; i++)
-            {
-                if (children.GetElement(i, out var child) != 0 || child is null)
-                {
-                    continue;
-                }
-
-                try
-                {
-                    child.get_CurrentName(out var name);
-                    child.get_CurrentAutomationId(out var automationId);
-                    child.get_CurrentControlType(out var controlType);
-                    child.get_CurrentBoundingRectangle(out var bounds);
-
-                    elements.Add(new AutomationElementInfo(
-                        name ?? string.Empty,
-                        automationId ?? string.Empty,
-                        GetControlTypeName(controlType),
-                        new RectDto(bounds.Left, bounds.Top, bounds.Right - bounds.Left, bounds.Bottom - bounds.Top)));
-                }
-                finally
-                {
-                    ReleaseComObject(child);
-                }
-            }
-
-            return elements;
+            var nodes = new List<AutomationTreeNode>();
+            var nextRef = 1;
+            Traverse(root, condition, maxDepth, depth: 0, parentRef: null, nodes, ref nextRef);
+            return nodes;
         }
         catch
         {
-            return Array.Empty<AutomationElementInfo>();
+            return Array.Empty<AutomationTreeNode>();
         }
         finally
         {
-            ReleaseComObject(children);
             ReleaseComObject(condition);
             ReleaseComObject(root);
             ReleaseComObject(automation);
             ReleaseComObject(automationObject);
         }
     }
+
+    private static void Traverse(
+        IUIAutomationElement element,
+        IUIAutomationCondition condition,
+        int maxDepth,
+        int depth,
+        string? parentRef,
+        List<AutomationTreeNode> nodes,
+        ref int nextRef)
+    {
+        var currentRef = $"e{nextRef++}";
+        nodes.Add(CreateNode(element, currentRef, parentRef, depth));
+        if (depth >= maxDepth)
+        {
+            return;
+        }
+
+        if (element.FindAll(TreeScope.Children, condition, out var children) != 0 || children is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (children.get_Length(out var length) != 0 || length <= 0)
+            {
+                return;
+            }
+
+            for (var index = 0; index < length; index++)
+            {
+                if (children.GetElement(index, out var child) != 0 || child is null)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    Traverse(child, condition, maxDepth, depth + 1, currentRef, nodes, ref nextRef);
+                }
+                finally
+                {
+                    ReleaseComObject(child);
+                }
+            }
+        }
+        finally
+        {
+            ReleaseComObject(children);
+        }
+    }
+
+    private static AutomationTreeNode CreateNode(IUIAutomationElement element, string currentRef, string? parentRef, int depth)
+    {
+        element.get_CurrentName(out var name);
+        element.get_CurrentAutomationId(out var automationId);
+        element.get_CurrentControlType(out var controlType);
+        element.get_CurrentBoundingRectangle(out var bounds);
+        element.get_CurrentIsKeyboardFocusable(out var isKeyboardFocusable);
+        element.get_CurrentIsEnabled(out var isEnabled);
+        element.get_CurrentIsOffscreen(out var isOffscreen);
+
+        var controlTypeName = GetControlTypeName(controlType);
+        return new AutomationTreeNode(
+            currentRef,
+            parentRef,
+            depth,
+            name ?? string.Empty,
+            automationId ?? string.Empty,
+            controlTypeName,
+            NormalizeRole(controlTypeName),
+            new RectDto(bounds.Left, bounds.Top, bounds.Right - bounds.Left, bounds.Bottom - bounds.Top),
+            isKeyboardFocusable != 0,
+            isEnabled != 0,
+            isOffscreen != 0);
+    }
+
+    private static string NormalizeRole(string controlTypeName)
+        => controlTypeName.StartsWith("ControlType.", StringComparison.OrdinalIgnoreCase)
+            ? controlTypeName["ControlType.".Length..].ToLowerInvariant()
+            : controlTypeName.ToLowerInvariant();
 
     private static string GetControlTypeName(int controlType)
         => controlType switch

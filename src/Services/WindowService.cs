@@ -57,6 +57,9 @@ public sealed class WindowService
         return CreateWindowInfo(hwnd);
     }
 
+    public nint GetForegroundWindowHandle()
+        => NativeMethods.GetForegroundWindow();
+
     public WindowInfo? FindWindowByTitle(string title)
         => FindWindowMatch(title, null);
 
