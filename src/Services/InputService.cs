@@ -1,12 +1,14 @@
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using PeekWin.Infrastructure;
 using PeekWin.Models;
 
 namespace PeekWin.Services;
 
+[SupportedOSPlatform("windows")]
 public sealed class InputService
 {
-    public async Task ClickAsync(int x, int y, MouseButton button, bool isDouble)
+    public async Task ClickAsync(int x, int y, MouseButton button, bool isDouble, int delayMs)
     {
         MoveMouse(x, y);
         var count = isDouble ? 2 : 1;
@@ -14,9 +16,9 @@ public sealed class InputService
         {
             MouseDown(button);
             MouseUp(button);
-            if (isDouble && i == 0)
+            if (i + 1 < count && delayMs > 0)
             {
-                await Task.Delay(60).ConfigureAwait(false);
+                await Task.Delay(delayMs).ConfigureAwait(false);
             }
         }
     }
@@ -26,6 +28,68 @@ public sealed class InputService
         if (!NativeMethods.SetCursorPos(x, y))
         {
             throw new InvalidOperationException($"Failed to move cursor to {x},{y}.");
+        }
+    }
+
+    public async Task MoveMouseAsync(int x, int y, int durationMs, int steps)
+    {
+        if (durationMs <= 0)
+        {
+            MoveMouse(x, y);
+            return;
+        }
+
+        var start = GetCursorPosition();
+        steps = Math.Max(1, steps);
+        var stepDelay = Math.Max(1, durationMs / steps);
+
+        for (var step = 1; step <= steps; step++)
+        {
+            var nextX = start.X + (int)Math.Round((x - start.X) * (step / (double)steps), MidpointRounding.AwayFromZero);
+            var nextY = start.Y + (int)Math.Round((y - start.Y) * (step / (double)steps), MidpointRounding.AwayFromZero);
+            MoveMouse(nextX, nextY);
+
+            if (step < steps)
+            {
+                await Task.Delay(stepDelay).ConfigureAwait(false);
+            }
+        }
+    }
+
+    public (int X, int Y) GetCursorPosition()
+    {
+        if (!NativeMethods.GetCursorPos(out var point))
+        {
+            throw new InvalidOperationException("Failed to read cursor position.");
+        }
+
+        return (point.X, point.Y);
+    }
+
+    public async Task DragAsync(int startX, int startY, int endX, int endY, MouseButton button, int durationMs, int steps)
+    {
+        steps = Math.Max(1, steps);
+        await MoveMouseAsync(startX, startY, 0, 1).ConfigureAwait(false);
+        MouseDown(button);
+
+        try
+        {
+            var stepDelay = steps > 0 ? Math.Max(1, durationMs / steps) : 0;
+            for (var step = 1; step <= steps; step++)
+            {
+                var x = startX + (int)Math.Round((endX - startX) * (step / (double)steps), MidpointRounding.AwayFromZero);
+                var y = startY + (int)Math.Round((endY - startY) * (step / (double)steps), MidpointRounding.AwayFromZero);
+                MoveMouse(x, y);
+
+                if (step < steps && stepDelay > 0)
+                {
+                    await Task.Delay(stepDelay).ConfigureAwait(false);
+                }
+            }
+        }
+        finally
+        {
+            MouseUp(button);
         }
     }
 
@@ -69,13 +133,36 @@ public sealed class InputService
         }
     }
 
-    public void PressKey(string key, int repeat)
+    public async Task PasteTextAsync(string text, int restoreDelayMs)
+    {
+        var snapshot = WithClipboardRetry(CaptureClipboardSnapshot);
+        try
+        {
+            WithClipboardRetry(() => SetClipboardText(text));
+            Hotkey(["ctrl", "v"]);
+            if (restoreDelayMs > 0)
+            {
+                await Task.Delay(restoreDelayMs).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            WithClipboardRetry(() => RestoreClipboardSnapshot(snapshot));
+        }
+    }
+
+    public async Task PressKeyAsync(string key, int repeat, int delayMs)
     {
         var vk = VirtualKeyParser.Parse(key);
         for (var i = 0; i < repeat; i++)
         {
             KeyDown(vk);
             KeyUp(vk);
+
+            if (i + 1 < repeat && delayMs > 0)
+            {
+                await Task.Delay(delayMs).ConfigureAwait(false);
+            }
         }
     }
 
@@ -93,17 +180,30 @@ public sealed class InputService
         }
     }
 
-    public async Task HoldKeyAsync(string key, int durationMs)
+    public async Task HoldKeysAsync(IReadOnlyList<string> keys, int durationMs)
     {
-        var vk = VirtualKeyParser.Parse(key);
-        KeyDown(vk);
-        await Task.Delay(durationMs).ConfigureAwait(false);
-        KeyUp(vk);
+        var parsed = keys.Select(VirtualKeyParser.Parse).ToArray();
+        foreach (var key in parsed)
+        {
+            KeyDown(key);
+        }
+
+        try
+        {
+            await Task.Delay(durationMs).ConfigureAwait(false);
+        }
+        finally
+        {
+            for (var i = parsed.Length - 1; i >= 0; i--)
+            {
+                KeyUp(parsed[i]);
+            }
+        }
     }
 
-    public async Task HoldMouseAsync(MouseButton button, int durationMs)
+    public async Task HoldMouseAsync(MouseButton button, int durationMs, int? x = null, int? y = null)
     {
-        MouseDown(button);
+        MouseDown(button, x, y);
         await Task.Delay(durationMs).ConfigureAwait(false);
         MouseUp(button);
     }
@@ -128,6 +228,41 @@ public sealed class InputService
         SendMouse(button, false);
     }
 
+    public void Scroll(int verticalDelta, int horizontalDelta = 0)
+    {
+        var inputs = new List<NativeMethods.INPUT>();
+        if (verticalDelta != 0)
+        {
+            inputs.Add(CreateMouseInput(NativeMethods.MOUSEEVENTF_WHEEL, unchecked((uint)verticalDelta)));
+        }
+
+        if (horizontalDelta != 0)
+        {
+            inputs.Add(CreateMouseInput(NativeMethods.MOUSEEVENTF_HWHEEL, unchecked((uint)horizontalDelta)));
+        }
+
+        if (inputs.Count == 0)
+        {
+            return;
+        }
+
+        Send(inputs.ToArray());
+    }
+
+    private static NativeMethods.INPUT CreateMouseInput(uint flags, uint mouseData)
+        => new()
+        {
+            type = NativeMethods.INPUT_MOUSE,
+            U = new NativeMethods.InputUnion
+            {
+                mi = new NativeMethods.MOUSEINPUT
+                {
+                    dwFlags = flags,
+                    mouseData = mouseData
+                }
+            }
+        };
+
     private static void SendMouse(MouseButton button, bool down)
     {
         uint flag = (button, down) switch
@@ -139,17 +274,7 @@ public sealed class InputService
             _ => throw new ArgumentOutOfRangeException(nameof(button))
         };
 
-        Send(new[]
-        {
-            new NativeMethods.INPUT
-            {
-                type = NativeMethods.INPUT_MOUSE,
-                U = new NativeMethods.InputUnion
-                {
-                    mi = new NativeMethods.MOUSEINPUT { dwFlags = flag }
-                }
-            }
-        });
+        Send([CreateMouseInput(flag, 0)]);
     }
 
     private static void KeyDown(ushort vk) => SendKey(vk, false);
@@ -159,8 +284,7 @@ public sealed class InputService
     private static void SendKey(ushort vk, bool keyUp)
     {
         var scanCode = NativeMethods.MapVirtualKey(vk, NativeMethods.MAPVK_VK_TO_VSC);
-        Send(new[]
-        {
+        Send([
             new NativeMethods.INPUT
             {
                 type = NativeMethods.INPUT_KEYBOARD,
@@ -174,7 +298,7 @@ public sealed class InputService
                     }
                 }
             }
-        });
+        ]);
     }
 
     private static void Send(NativeMethods.INPUT[] inputs)
@@ -185,6 +309,203 @@ public sealed class InputService
             throw new InvalidOperationException("Windows rejected the injected input.");
         }
     }
+
+    private static ClipboardSnapshot CaptureClipboardSnapshot()
+    {
+        var hadClipboardData = ClipboardHasData();
+        if (!hadClipboardData)
+        {
+            return new ClipboardSnapshot(false, null);
+        }
+
+        var result = NativeMethods.OleGetClipboard(out var dataObject);
+        if (result < 0)
+        {
+            Marshal.ThrowExceptionForHR(result);
+        }
+
+        return new ClipboardSnapshot(true, dataObject);
+    }
+
+    private static void RestoreClipboardSnapshot(ClipboardSnapshot snapshot)
+    {
+        if (!snapshot.HadClipboardData)
+        {
+            if (!NativeMethods.OpenClipboard(nint.Zero))
+            {
+                throw new ExternalException("Failed to open clipboard.");
+            }
+
+            try
+            {
+                NativeMethods.EmptyClipboard();
+            }
+            finally
+            {
+                NativeMethods.CloseClipboard();
+            }
+
+            return;
+        }
+
+        var result = NativeMethods.OleSetClipboard(snapshot.DataObject);
+        if (result < 0)
+        {
+            Marshal.ThrowExceptionForHR(result);
+        }
+
+        result = NativeMethods.OleFlushClipboard();
+        if (result < 0)
+        {
+            Marshal.ThrowExceptionForHR(result);
+        }
+    }
+
+    private static void SetClipboardText(string text)
+    {
+        if (!NativeMethods.OpenClipboard(nint.Zero))
+        {
+            throw new ExternalException("Failed to open clipboard.");
+        }
+
+        nint memory = nint.Zero;
+        nint locked = nint.Zero;
+        try
+        {
+            if (!NativeMethods.EmptyClipboard())
+            {
+                throw new ExternalException("Failed to clear clipboard.");
+            }
+
+            var bytes = (text.Length + 1) * sizeof(char);
+            memory = NativeMethods.GlobalAlloc(NativeMethods.GMEM_MOVEABLE | NativeMethods.GMEM_ZEROINIT, (nuint)bytes);
+            if (memory == nint.Zero)
+            {
+                throw new InvalidOperationException("Failed to allocate clipboard memory.");
+            }
+
+            locked = NativeMethods.GlobalLock(memory);
+            if (locked == nint.Zero)
+            {
+                throw new InvalidOperationException("Failed to lock clipboard memory.");
+            }
+
+            Marshal.Copy(text.ToCharArray(), 0, locked, text.Length);
+            Marshal.WriteInt16(locked, text.Length * sizeof(char), 0);
+            NativeMethods.GlobalUnlock(memory);
+            locked = nint.Zero;
+
+            if (NativeMethods.SetClipboardData(NativeMethods.CF_UNICODETEXT, memory) == nint.Zero)
+            {
+                throw new ExternalException("Failed to publish clipboard text.");
+            }
+
+            memory = nint.Zero;
+        }
+        finally
+        {
+            if (locked != nint.Zero)
+            {
+                NativeMethods.GlobalUnlock(memory);
+            }
+
+            if (memory != nint.Zero)
+            {
+                NativeMethods.GlobalFree(memory);
+            }
+
+            NativeMethods.CloseClipboard();
+        }
+    }
+
+    private static void WithClipboardRetry(Action action)
+        => WithClipboardRetry<object?>(() =>
+        {
+            action();
+            return null;
+        });
+
+    private static T WithClipboardRetry<T>(Func<T> action)
+    {
+        Exception? lastError = null;
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            try
+            {
+                return RunSta(action);
+            }
+            catch (Exception ex) when (ex is ExternalException or COMException)
+            {
+                lastError = ex;
+                Thread.Sleep(25);
+            }
+        }
+
+        throw new InvalidOperationException("Clipboard is busy and could not be accessed.", lastError);
+    }
+
+    private static T RunSta<T>(Func<T> action)
+    {
+        T? result = default;
+        Exception? error = null;
+
+        var thread = new Thread(() =>
+        {
+            var oleInitialized = false;
+            try
+            {
+                var oleResult = NativeMethods.OleInitialize(nint.Zero);
+                if (oleResult < 0)
+                {
+                    Marshal.ThrowExceptionForHR(oleResult);
+                }
+
+                oleInitialized = true;
+                result = action();
+            }
+            catch (Exception ex)
+            {
+                error = ex;
+            }
+            finally
+            {
+                if (oleInitialized)
+                {
+                    NativeMethods.OleUninitialize();
+                }
+            }
+        });
+
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        if (error is not null)
+        {
+            throw error;
+        }
+
+        return result!;
+    }
+
+    private static bool ClipboardHasData()
+    {
+        if (!NativeMethods.OpenClipboard(nint.Zero))
+        {
+            throw new ExternalException("Failed to open clipboard.");
+        }
+
+        try
+        {
+            return NativeMethods.EnumClipboardFormats(0) != 0;
+        }
+        finally
+        {
+            NativeMethods.CloseClipboard();
+        }
+    }
+
+    private sealed record ClipboardSnapshot(bool HadClipboardData, System.Runtime.InteropServices.ComTypes.IDataObject? DataObject);
 }
 
 internal static class VirtualKeyParser
@@ -266,45 +587,42 @@ internal static class VirtualKeyParser
         ["f22"] = 0x85,
         ["f23"] = 0x86,
         ["f24"] = 0x87,
+        ["browserback"] = 0xA6,
+        ["browserforward"] = 0xA7,
+        ["browserrefresh"] = 0xA8,
+        ["browserstop"] = 0xA9,
+        ["browsersearch"] = 0xAA,
+        ["browserfavorites"] = 0xAB,
+        ["browserhome"] = 0xAC,
         ["volumemute"] = 0xAD,
-        ["mute"] = 0xAD,
         ["volumedown"] = 0xAE,
         ["volumeup"] = 0xAF,
         ["medianext"] = 0xB0,
         ["mediaprev"] = 0xB1,
-        ["mediaprevious"] = 0xB1,
         ["mediastop"] = 0xB2,
         ["mediaplaypause"] = 0xB3,
-        ["playpause"] = 0xB3,
-        ["semicolon"] = 0xBA,
-        ["plus"] = 0xBB,
-        ["comma"] = 0xBC,
-        ["minus"] = 0xBD,
-        ["period"] = 0xBE,
-        ["slash"] = 0xBF,
-        ["backtick"] = 0xC0,
-        ["lbracket"] = 0xDB,
-        ["backslash"] = 0xDC,
-        ["rbracket"] = 0xDD,
-        ["quote"] = 0xDE
+        ["launchmail"] = 0xB4,
+        ["launchmedia"] = 0xB5,
+        ["launchapp1"] = 0xB6,
+        ["launchapp2"] = 0xB7
     };
 
-    public static ushort Parse(string key)
+    public static ushort Parse(string value)
     {
-        if (NamedKeys.TryGetValue(key, out var named))
+        if (NamedKeys.TryGetValue(value, out var vk))
         {
-            return named;
+            return vk;
         }
 
-        if (key.Length == 1)
+        if (value.Length == 1)
         {
-            char ch = char.ToUpperInvariant(key[0]);
-            if (ch is >= 'A' and <= 'Z' || ch is >= '0' and <= '9')
+            var mapped = NativeMethods.VkKeyScan(value[0]);
+            if (mapped != -1)
             {
-                return ch;
+                return (ushort)(mapped & 0xFF);
             }
         }
 
-        throw new InvalidOperationException($"Unsupported key: {key}");
+        throw new InvalidOperationException($"Unsupported key: {value}");
     }
 }

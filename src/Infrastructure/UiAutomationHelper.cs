@@ -1,8 +1,10 @@
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using PeekWin.Models;
 
 namespace PeekWin.Infrastructure;
 
+[SupportedOSPlatform("windows")]
 internal static class UiAutomationHelper
 {
     private static readonly Guid CUIAutomationClsid = new("FF48DBA4-60EF-4201-AA87-54103EEF594E");

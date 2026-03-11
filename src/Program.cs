@@ -1,22 +1,26 @@
+using System.Runtime.Versioning;
 using PeekWin.Cli;
-using PeekWin.Infrastructure;
 using PeekWin.Services;
 
-if (args.Length > 0 && args[0].Equals("version", StringComparison.OrdinalIgnoreCase))
-{
-    Console.WriteLine(CommandShell.GetVersionText());
-    return 0;
-}
+[assembly: SupportedOSPlatform("windows")]
 
-if (!OperatingSystem.IsWindows())
+var inputService = new InputService();
+var shell = new CommandShell(
+    new WindowService(),
+    inputService,
+    new ScreenshotService(),
+    new VirtualDesktopService(inputService));
+
+if (!OperatingSystem.IsWindows() && !AllowsNonWindowsExecution(args))
 {
     Console.Error.WriteLine("peekwin currently runs on Windows only.");
     return 1;
 }
 
-var shell = new CommandShell(
-    new WindowService(),
-    new InputService(),
-    new ScreenshotService());
-
 return await shell.RunAsync(args);
+
+static bool AllowsNonWindowsExecution(IReadOnlyList<string> args)
+    => args.Count == 0
+        || args.Any(static arg => arg.Equals("--help", StringComparison.OrdinalIgnoreCase) || arg.Equals("-h", StringComparison.OrdinalIgnoreCase))
+        || args[0].Equals("help", StringComparison.OrdinalIgnoreCase)
+        || args[0].Equals("version", StringComparison.OrdinalIgnoreCase);
