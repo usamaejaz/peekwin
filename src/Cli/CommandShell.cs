@@ -491,7 +491,7 @@ public sealed class CommandShell
         EnsureNoPositionals(command, options);
         var target = ParseTarget(command, options, allowScreen: true, allowWindow: true);
         var resolvedTarget = ResolveBoundsTarget(command, target);
-        var point = ResolvePoint(command, options, resolvedTarget, requirePointIfNoTarget: true, defaultToCenterWhenTargeted: true);
+        var point = ResolvePoint(command, options, resolvedTarget, requirePointIfNoTarget: false, defaultToCenterWhenTargeted: true, defaultToCursorWhenUnspecified: true);
         var button = ParseMouseButton(options.GetValueOrDefault("button") ?? "left");
         var isDouble = options.HasFlag("double");
         var delayMs = ReadNonNegativeInt(options, "delay-ms") ?? (isDouble ? 60 : 0);
