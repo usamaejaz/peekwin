@@ -6,6 +6,9 @@ public sealed record AutomationSnapshot(
     string TargetLabel,
     string? AppName,
     string WindowHandle,
+    string WindowTitle,
+    string WindowClassName,
+    int ProcessId,
     RectDto Bounds,
     int MaxDepth,
     IReadOnlyList<AutomationTreeNode> Elements);

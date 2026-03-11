@@ -14,16 +14,19 @@ public sealed class AutomationSnapshotService
 
     private readonly string _snapshotPath = Path.Combine(Path.GetTempPath(), "peekwin", "latest-see.json");
 
-    public void SaveSnapshot(string targetLabel, string? appName, nint windowHandle, RectDto bounds, int maxDepth, IReadOnlyList<AutomationTreeNode> elements)
+    public void SaveSnapshot(WindowInspection window, int maxDepth, IReadOnlyList<AutomationTreeNode> elements)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(_snapshotPath)!);
         var snapshot = new AutomationSnapshot(
-            "1",
+            "2",
             DateTimeOffset.UtcNow,
-            targetLabel,
-            appName,
-            $"0x{windowHandle.ToInt64():X}",
-            bounds,
+            window.Title,
+            window.ProcessName,
+            window.Handle,
+            window.Title,
+            window.ClassName,
+            window.ProcessId,
+            window.Bounds,
             maxDepth,
             elements);
         File.WriteAllText(_snapshotPath, JsonSerializer.Serialize(snapshot, JsonOptions));
@@ -48,6 +51,11 @@ public sealed class AutomationSnapshotService
     public AutomationRefTarget ResolveRef(string refId)
     {
         var snapshot = LoadLatestSnapshot();
+        if (snapshot.Version != "2")
+        {
+            throw new InvalidOperationException("Saved UI snapshot is outdated. Run `peekwin see` again.");
+        }
+
         var element = snapshot.Elements.FirstOrDefault(item => item.Ref.Equals(refId, StringComparison.OrdinalIgnoreCase));
         if (element is null)
         {
@@ -63,6 +71,9 @@ public sealed class AutomationSnapshotService
             snapshot.TargetLabel,
             snapshot.AppName,
             (nint)handleValue,
+            snapshot.WindowTitle,
+            snapshot.WindowClassName,
+            snapshot.ProcessId,
             element.Bounds,
             element.Name,
             element.AutomationId,
