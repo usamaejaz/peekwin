@@ -201,16 +201,16 @@ peekwin app list --json
 peekwin see
 peekwin see --json
 peekwin see --title "Notepad"
-peekwin see --app chrome --deep --visible --interactive --json
+peekwin see --app chrome --deep --json
 peekwin see --max-depth 4 --json
 peekwin see --role button --json
 peekwin see --name Save --json
 peekwin see --all --json
 ```
 
-`see` inspects the UI Automation tree for a target window. Without a target it uses the current foreground window. By default it returns the root plus one child level in a compact mode that hides off-screen nodes, 0x0 nodes, and obvious unnamed wrapper noise while preserving full control type names like `ControlType.Pane`. Use `--all` or `--raw` to inspect the full saved tree. `--deep` expands farther and `--max-depth` gives explicit control. `--visible` keeps only on-screen elements. `--interactive` keeps enabled interactive elements. `--role` filters by normalized control type such as `button`, `edit`, or `pane`.
+`see` inspects the UI Automation tree for a target window. Without a target it uses the current foreground window. By default it returns the root plus one child level in a compact mode that hides off-screen and 0x0 nodes, suppresses duplicate/passive duplicate noise, and keeps full element names plus full control type names like `ControlType.Pane`. Use `--all` or `--raw` to inspect the full saved tree. `--deep` expands farther and `--max-depth` gives explicit control. `--role` filters by normalized control type such as `button`, `edit`, or `pane`.
 
-After `peekwin see`, the latest UI snapshot is stored temporarily so later commands can target elements by `--ref`. Pointer, image, and keyboard/text commands accept `--ref <id>` and resolve it against the latest saved snapshot. Refs are strict: if the source window is gone, the window identity changed, or the saved element path no longer resolves to the same element, PeekWin fails hard and asks you to run `peekwin see` again.
+After `peekwin see`, the latest UI snapshot is stored temporarily so later commands can target elements by `--ref`. Pointer, image, and keyboard/text commands accept `--ref <id>` and resolve it against the latest saved snapshot. Refs are strict: if the source window is gone, the saved handle now points at a different window identity, or the saved element path no longer resolves to the same element, PeekWin fails hard and asks you to run `peekwin see` again.
 
 ### List screens
 
