@@ -1,10 +1,11 @@
 namespace PeekWin.Models;
 
 public sealed record WindowInfo(
-    long Handle,
+    string Handle,
     string Title,
     string ClassName,
     int ProcessId,
+    string ProcessName,
     bool IsVisible,
     bool IsMinimized,
     bool IsMaximized,
@@ -18,16 +19,24 @@ public sealed record AutomationElementInfo(
     RectDto Bounds);
 
 public sealed record WindowInspection(
-    long Handle,
+    string Handle,
     string Title,
     string ClassName,
     int ProcessId,
+    string ProcessName,
     bool IsVisible,
     bool IsMinimized,
     bool IsMaximized,
     string DesktopLabel,
     RectDto Bounds,
     IReadOnlyList<AutomationElementInfo> Elements);
+
+public sealed record AppInfo(
+    string Name,
+    IReadOnlyList<int> ProcessIds,
+    int WindowCount,
+    int VisibleWindowCount,
+    IReadOnlyList<string> WindowTitles);
 
 public enum MouseButton
 {

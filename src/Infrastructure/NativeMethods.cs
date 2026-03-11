@@ -5,7 +5,12 @@ namespace PeekWin.Infrastructure;
 
 internal static class NativeMethods
 {
+    internal const int SW_MINIMIZE = 6;
+    internal const int SW_MAXIMIZE = 3;
     internal const int SW_RESTORE = 9;
+    internal const uint WM_CLOSE = 0x0010;
+    internal const int BI_RGB = 0;
+    internal const uint DIB_RGB_COLORS = 0;
     internal const uint INPUT_MOUSE = 0;
     internal const uint INPUT_KEYBOARD = 1;
     internal const uint KEYEVENTF_KEYUP = 0x0002;
@@ -15,13 +20,20 @@ internal static class NativeMethods
     internal const uint MOUSEEVENTF_LEFTUP = 0x0004;
     internal const uint MOUSEEVENTF_RIGHTDOWN = 0x0008;
     internal const uint MOUSEEVENTF_RIGHTUP = 0x0010;
+    internal const uint MOUSEEVENTF_WHEEL = 0x0800;
+    internal const uint MOUSEEVENTF_HWHEEL = 0x01000;
     internal const uint MOUSEEVENTF_ABSOLUTE = 0x8000;
     internal const int SRCCOPY = 0x00CC0020;
     internal const uint MAPVK_VK_TO_VSC = 0;
+    internal const int WHEEL_DELTA = 120;
+    internal const uint CF_UNICODETEXT = 13;
+    internal const uint GMEM_MOVEABLE = 0x0002;
+    internal const uint GMEM_ZEROINIT = 0x0040;
     internal const int SM_XVIRTUALSCREEN = 76;
     internal const int SM_YVIRTUALSCREEN = 77;
     internal const int SM_CXVIRTUALSCREEN = 78;
     internal const int SM_CYVIRTUALSCREEN = 79;
+    internal const uint MONITORINFOF_PRIMARY = 0x00000001;
 
     [DllImport("user32.dll")]
     internal static extern bool EnumWindows(EnumWindowsProc callback, nint lParam);
@@ -60,6 +72,9 @@ internal static class NativeMethods
     internal static extern bool SetCursorPos(int x, int y);
 
     [DllImport("user32.dll")]
+    internal static extern bool GetCursorPos(out POINT point);
+
+    [DllImport("user32.dll")]
     internal static extern bool GetWindowRect(nint hWnd, out RECT rect);
 
     [DllImport("user32.dll")]
@@ -70,6 +85,32 @@ internal static class NativeMethods
 
     [DllImport("user32.dll")]
     internal static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool PostMessage(nint hWnd, uint msg, nint wParam, nint lParam);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool OpenClipboard(nint hWndNewOwner);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool CloseClipboard();
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool EmptyClipboard();
+
+    [DllImport("user32.dll")]
+    internal static extern nint GetClipboardData(uint uFormat);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool IsClipboardFormatAvailable(uint format);
+
+    [DllImport("user32.dll")]
+    internal static extern nint SetClipboardData(uint uFormat, nint hMem);
 
     [DllImport("user32.dll")]
     internal static extern short VkKeyScan(char ch);
@@ -110,6 +151,25 @@ internal static class NativeMethods
     [DllImport("gdi32.dll")]
     internal static extern bool DeleteObject(nint ho);
 
+    [DllImport("gdi32.dll")]
+    internal static extern int GetDIBits(nint hdc, nint hbmp, uint uStartScan, uint cScanLines, nint lpvBits, ref BITMAPINFO lpbmi, uint uUsage);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    internal static extern nint GlobalAlloc(uint uFlags, nuint dwBytes);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    internal static extern nint GlobalLock(nint hMem);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GlobalUnlock(nint hMem);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    internal static extern nuint GlobalSize(nint hMem);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    internal static extern nint GlobalFree(nint hMem);
+
     internal delegate bool EnumWindowsProc(nint hWnd, nint lParam);
     internal delegate bool MonitorEnumProc(nint hMonitor, nint hdcMonitor, ref RECT monitorRect, nint dwData);
 
@@ -122,6 +182,13 @@ internal static class NativeMethods
         public int Bottom;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct POINT
+    {
+        public int X;
+        public int Y;
+    }
+
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     internal struct MONITORINFOEX
     {
@@ -132,6 +199,29 @@ internal static class NativeMethods
 
         [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
         public string szDevice;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct BITMAPINFOHEADER
+    {
+        public uint biSize;
+        public int biWidth;
+        public int biHeight;
+        public ushort biPlanes;
+        public ushort biBitCount;
+        public uint biCompression;
+        public uint biSizeImage;
+        public int biXPelsPerMeter;
+        public int biYPelsPerMeter;
+        public uint biClrUsed;
+        public uint biClrImportant;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct BITMAPINFO
+    {
+        public BITMAPINFOHEADER bmiHeader;
+        public uint bmiColors;
     }
 
     [StructLayout(LayoutKind.Sequential)]

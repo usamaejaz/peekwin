@@ -1,7 +1,9 @@
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 
 namespace PeekWin.Infrastructure;
 
+[SupportedOSPlatform("windows")]
 internal static class VirtualDesktopHelper
 {
     private static readonly Guid ClsidVirtualDesktopManager = new("AA509086-5CA9-4C25-8F95-589D3C07B48A");
