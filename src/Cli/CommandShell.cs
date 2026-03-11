@@ -59,6 +59,7 @@ public sealed class CommandShell
                 "paste" => await HandlePasteAsync(args[1..]),
                 "press" => await HandlePressAsync(args[1..]),
                 "hotkey" => HandleHotkey(args[1..]),
+                "keys" => await HandleKeysAsync(args[1..]),
                 "hold" => await HandleHoldAsync(args[1..]),
                 "image" => HandleImageCommand(args[1..], "image"),
                 "screenshot" => HandleImageCommand(args[1..], "screenshot"),
@@ -143,6 +144,9 @@ public sealed class CommandShell
                 return;
             case "hold":
                 PrintHoldHelp();
+                return;
+            case "keys":
+                PrintKeysHelp();
                 return;
             case "image":
             case "screenshot":
@@ -491,7 +495,7 @@ public sealed class CommandShell
         EnsureNoPositionals(command, options);
         var target = ParseTarget(command, options, allowScreen: true, allowWindow: true);
         var resolvedTarget = ResolveBoundsTarget(command, target);
-        var point = ResolvePoint(command, options, resolvedTarget, requirePointIfNoTarget: true, defaultToCenterWhenTargeted: true);
+        var point = ResolvePoint(command, options, resolvedTarget, requirePointIfNoTarget: false, defaultToCenterWhenTargeted: true, defaultToCursorWhenUnspecified: true);
         var button = ParseMouseButton(options.GetValueOrDefault("button") ?? "left");
         var isDouble = options.HasFlag("double");
         var delayMs = ReadNonNegativeInt(options, "delay-ms") ?? (isDouble ? 60 : 0);
@@ -825,6 +829,38 @@ public sealed class CommandShell
         return 0;
     }
 
+    private async Task<int> HandleKeysAsync(string[] args)
+    {
+        const string command = "keys";
+        if (IsHelpRequest(args))
+        {
+            PrintKeysHelp();
+            return 0;
+        }
+
+        if (!TryParseOptions(command, args, out var options))
+        {
+            return 1;
+        }
+
+        var target = ParseTarget(command, options, allowScreen: false, allowWindow: true);
+        if (!FocusTargetIfNeeded(command, target, options.HasFlag("json")))
+        {
+            return 1;
+        }
+
+        var steps = ResolveKeySteps(command, options);
+        var delayMs = ReadNonNegativeInt(options, "delay-ms") ?? 0;
+        await _inputService.SendKeySequenceAsync(steps, delayMs).ConfigureAwait(false);
+        WriteResult(
+            command,
+            CommandResult.Ok(
+                $"Sent key sequence with {steps.Count} step(s).",
+                details: new { steps, delayMs, target = ToTargetData(ResolveWindowTarget(command, target)) }),
+            options.HasFlag("json"));
+        return 0;
+    }
+
     private async Task<int> HandleHoldAsync(string[] args)
     {
         const string command = "hold";
@@ -982,24 +1018,27 @@ public sealed class CommandShell
             handle = windowHandle;
         }
 
-        var targetCount = (screen is not null ? 1 : 0)
-            + (handle != 0 ? 1 : 0)
-            + (!string.IsNullOrWhiteSpace(title) ? 1 : 0)
-            + (!string.IsNullOrWhiteSpace(app) ? 1 : 0);
-
-        if (targetCount > 1)
-        {
-            throw new InvalidOperationException($"{command} accepts only one of --screen, --app, --title, --handle, or --window.");
-        }
+        var hasWindowFilter = handle != 0 || !string.IsNullOrWhiteSpace(title) || !string.IsNullOrWhiteSpace(app);
+        var targetCount = (screen is not null ? 1 : 0) + (hasWindowFilter ? 1 : 0);
 
         if (!allowScreen && screen is not null)
         {
             throw new InvalidOperationException($"{command} does not support --screen.");
         }
 
-        if (!allowWindow && (handle != 0 || !string.IsNullOrWhiteSpace(title) || !string.IsNullOrWhiteSpace(app)))
+        if (!allowWindow && hasWindowFilter)
         {
             throw new InvalidOperationException($"{command} does not support --app, --title, --handle, or --window.");
+        }
+
+        if (screen is not null && hasWindowFilter)
+        {
+            throw new InvalidOperationException($"{command} accepts either --screen or window targeting flags, not both.");
+        }
+
+        if (handle != 0 && (!string.IsNullOrWhiteSpace(title) || !string.IsNullOrWhiteSpace(app)))
+        {
+            throw new InvalidOperationException($"{command} accepts either --handle/--window or title/app filters, not both.");
         }
 
         if (requireTarget && targetCount == 0)
@@ -1031,27 +1070,21 @@ public sealed class CommandShell
         => ResolveWindowTarget(
             command,
             target,
-            _windowService.FindWindowByTitle,
-            _windowService.FindWindowByApp,
-            titleErrorPrefix: "No window matched title: ",
-            appErrorPrefix: "No window matched app: ");
+            _windowService.FindWindowMatch,
+            errorPrefix: "No window matched");
 
     private ResolvedTarget? ResolveCaptureWindowTarget(string command, TargetSelector target)
         => ResolveWindowTarget(
             command,
             target,
-            _windowService.FindCapturableWindowByTitle,
-            _windowService.FindCapturableWindowByApp,
-            titleErrorPrefix: "No capturable window matched title: ",
-            appErrorPrefix: "No capturable window matched app: ");
+            _windowService.FindCapturableWindowMatch,
+            errorPrefix: "No capturable window matched");
 
     private ResolvedTarget? ResolveWindowTarget(
         string command,
         TargetSelector target,
-        Func<string, WindowInfo?> findByTitle,
-        Func<string, WindowInfo?> findByApp,
-        string titleErrorPrefix,
-        string appErrorPrefix)
+        Func<string?, string?, WindowInfo?> findWindow,
+        string errorPrefix)
     {
         WindowInfo? window = null;
         if (target.Handle != 0)
@@ -1062,26 +1095,33 @@ public sealed class CommandShell
                 throw new InvalidOperationException($"Invalid or destroyed window handle: 0x{target.Handle.ToInt64():X}.");
             }
         }
-        else if (!string.IsNullOrWhiteSpace(target.Title))
+        else if (!string.IsNullOrWhiteSpace(target.Title) || !string.IsNullOrWhiteSpace(target.App))
         {
-            window = findByTitle(target.Title);
+            window = findWindow(target.Title, target.App);
             if (window is null)
             {
-                throw new InvalidOperationException($"{titleErrorPrefix}{target.Title}");
-            }
-        }
-        else if (!string.IsNullOrWhiteSpace(target.App))
-        {
-            window = findByApp(target.App);
-            if (window is null)
-            {
-                throw new InvalidOperationException($"{appErrorPrefix}{target.App}");
+                throw new InvalidOperationException(BuildWindowMatchError(errorPrefix, target));
             }
         }
 
         return window is null
             ? null
             : new ResolvedTarget("window", window.Title, window.Bounds, ParseHandle(window.Handle), AppName: window.ProcessName);
+    }
+
+    private static string BuildWindowMatchError(string prefix, TargetSelector target)
+    {
+        if (!string.IsNullOrWhiteSpace(target.Title) && !string.IsNullOrWhiteSpace(target.App))
+        {
+            return $"{prefix} title '{target.Title}' in app '{target.App}'.";
+        }
+
+        if (!string.IsNullOrWhiteSpace(target.Title))
+        {
+            return $"{prefix} title: {target.Title}";
+        }
+
+        return $"{prefix} app: {target.App}";
     }
 
     private bool FocusTargetIfNeeded(string command, TargetSelector target, bool asJson)
@@ -1220,6 +1260,59 @@ public sealed class CommandShell
         }
 
         throw new InvalidOperationException($"{command} requires a key.");
+    }
+
+    private static IReadOnlyList<KeySequenceStep> ResolveKeySteps(string command, OptionSet options)
+    {
+        var steps = new List<string>();
+        if (options.HasValue("steps"))
+        {
+            steps.AddRange((options.GetValueOrDefault("steps") ?? string.Empty)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        }
+
+        steps.AddRange(options.Positionals);
+        if (steps.Count == 0)
+        {
+            throw new InvalidOperationException($"{command} requires one or more steps.");
+        }
+
+        return steps.Select(ParseKeySequenceStep).ToList();
+    }
+
+    private static KeySequenceStep ParseKeySequenceStep(string raw)
+    {
+        var separatorIndex = raw.IndexOf(':');
+        if (separatorIndex < 0)
+        {
+            return new KeySequenceStep("tap", raw.Trim(), null);
+        }
+
+        if (separatorIndex == 0 || separatorIndex == raw.Length - 1)
+        {
+            throw new InvalidOperationException($"Invalid key sequence step: {raw}. Expected kind:value.");
+        }
+
+        var action = raw[..separatorIndex].Trim().ToLowerInvariant();
+        var value = raw[(separatorIndex + 1)..].Trim();
+        return action switch
+        {
+            "tap" or "press" => new KeySequenceStep("tap", value, null),
+            "down" or "hold" => new KeySequenceStep("down", value, null),
+            "up" or "release" => new KeySequenceStep("up", value, null),
+            "sleep" => new KeySequenceStep("sleep", null, ParseStepDelay(raw, value)),
+            _ => throw new InvalidOperationException($"Unsupported key sequence step: {raw}.")
+        };
+    }
+
+    private static int ParseStepDelay(string raw, string value)
+    {
+        if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var delayMs) || delayMs < 0)
+        {
+            throw new InvalidOperationException($"Invalid sleep duration in step: {raw}.");
+        }
+
+        return delayMs;
     }
 
     private static IReadOnlyList<string> ResolveKeys(string command, OptionSet options)
@@ -1527,6 +1620,7 @@ public sealed class CommandShell
         Console.WriteLine("  peekwin paste [text] [--delay-ms <n>] [window-target] [--json]");
         Console.WriteLine("  peekwin press [key] [--repeat <n>] [--delay-ms <n>] [window-target] [--json]");
         Console.WriteLine("  peekwin hotkey [keys...] [--keys ctrl,s] [window-target] [--json]");
+        Console.WriteLine("  peekwin keys [steps...] [--steps <value>] [--delay-ms <n>] [window-target] [--json]");
         Console.WriteLine("  peekwin hold [keys...] [--keys ctrl,shift | --button left|right] [--duration-ms <n>] [target] [--json]");
         Console.WriteLine();
         Console.WriteLine("Utility commands:");
@@ -1584,6 +1678,14 @@ public sealed class CommandShell
         Console.WriteLine("  peekwin mouse down [--button left|right] [--x <n> --y <n>] [target] [--json]");
         Console.WriteLine("  peekwin mouse up [--button left|right] [--x <n> --y <n>] [target] [--json]");
         Console.WriteLine("  target = --screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND>");
+    }
+
+    private static void PrintKeysHelp()
+    {
+        Console.WriteLine("Key sequence commands:");
+        Console.WriteLine("  peekwin keys [steps...] [--steps <value>] [--delay-ms <n>] [--app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--json]");
+        Console.WriteLine("  step forms: <key>, tap:<key>, down:<key>, up:<key>, sleep:<ms>");
+        Console.WriteLine("  example: peekwin keys down:alt tap:tab tap:right tap:right up:alt --app explorer");
     }
 
     private static void PrintHoldHelp()

@@ -195,6 +195,54 @@ public sealed class InputService
         }
     }
 
+    public async Task SendKeySequenceAsync(IReadOnlyList<KeySequenceStep> steps, int defaultDelayMs)
+    {
+        var heldKeys = new List<ushort>();
+        try
+        {
+            for (var index = 0; index < steps.Count; index++)
+            {
+                var step = steps[index];
+                switch (step.Action)
+                {
+                    case "tap":
+                        PressBinding(VirtualKeyParser.Parse(step.Key!));
+                        break;
+                    case "down":
+                        foreach (var vk in ExpandBinding(VirtualKeyParser.Parse(step.Key!)))
+                        {
+                            if (!heldKeys.Contains(vk))
+                            {
+                                KeyDown(vk);
+                                heldKeys.Add(vk);
+                            }
+                        }
+                        break;
+                    case "up":
+                        ReleaseBinding(VirtualKeyParser.Parse(step.Key!), heldKeys);
+                        break;
+                    case "sleep":
+                        await Task.Delay(step.DelayMs ?? 0).ConfigureAwait(false);
+                        continue;
+                    default:
+                        throw new InvalidOperationException($"Unsupported key sequence action: {step.Action}.");
+                }
+
+                if (defaultDelayMs > 0 && index + 1 < steps.Count)
+                {
+                    await Task.Delay(defaultDelayMs).ConfigureAwait(false);
+                }
+            }
+        }
+        finally
+        {
+            for (var i = heldKeys.Count - 1; i >= 0; i--)
+            {
+                KeyUp(heldKeys[i]);
+            }
+        }
+    }
+
     public async Task HoldKeysAsync(IReadOnlyList<string> keys, int durationMs)
     {
         var sequence = ExpandKeySequence(keys);
@@ -346,22 +394,51 @@ public sealed class InputService
         }
     }
 
+    private static IReadOnlyList<ushort> ExpandBinding(VirtualKeyBinding binding)
+    {
+        var sequence = new List<ushort>();
+        foreach (var modifier in binding.Modifiers)
+        {
+            if (!sequence.Contains(modifier))
+            {
+                sequence.Add(modifier);
+            }
+        }
+
+        if (!sequence.Contains(binding.VirtualKey))
+        {
+            sequence.Add(binding.VirtualKey);
+        }
+
+        return sequence;
+    }
+
+    private static void ReleaseBinding(VirtualKeyBinding binding, List<ushort> heldKeys)
+    {
+        var expanded = ExpandBinding(binding);
+        for (var i = expanded.Count - 1; i >= 0; i--)
+        {
+            var vk = expanded[i];
+            var index = heldKeys.LastIndexOf(vk);
+            if (index >= 0)
+            {
+                KeyUp(vk);
+                heldKeys.RemoveAt(index);
+            }
+        }
+    }
+
     private static IReadOnlyList<ushort> ExpandKeySequence(IReadOnlyList<string> keys)
     {
         var sequence = new List<ushort>();
         foreach (var binding in keys.Select(VirtualKeyParser.Parse))
         {
-            foreach (var modifier in binding.Modifiers)
+            foreach (var vk in ExpandBinding(binding))
             {
-                if (!sequence.Contains(modifier))
+                if (!sequence.Contains(vk))
                 {
-                    sequence.Add(modifier);
+                    sequence.Add(vk);
                 }
-            }
-
-            if (!sequence.Contains(binding.VirtualKey))
-            {
-                sequence.Add(binding.VirtualKey);
             }
         }
 
