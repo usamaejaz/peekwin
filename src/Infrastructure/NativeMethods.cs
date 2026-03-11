@@ -80,6 +80,9 @@ internal static class NativeMethods
     internal static extern bool SetForegroundWindow(nint hWnd);
 
     [DllImport("user32.dll")]
+    internal static extern nint GetForegroundWindow();
+
+    [DllImport("user32.dll")]
     internal static extern bool ShowWindow(nint hWnd, int nCmdShow);
 
     [DllImport("user32.dll")]

@@ -33,6 +33,8 @@ Implemented command surface:
 - `paste`
 - `press`
 - `hotkey`
+- `keys`
+- `see`
 - `hold`
 - `sleep`
 
@@ -193,6 +195,20 @@ peekwin app list --json
 
 `app list` groups visible titled windows by process name and reports process IDs plus visible-window counts.
 
+### See UI automation tree
+
+```powershell
+peekwin see
+peekwin see --json
+peekwin see --title "Notepad" --json
+peekwin see --app chrome --deep --json
+peekwin see --max-depth 4 --json
+peekwin see --role button --json
+peekwin see --name Save --json
+```
+
+`see` inspects the UI Automation tree for a target window. Without a target it uses the current foreground window. By default it returns the root plus one child level; `--deep` expands farther and `--max-depth` gives explicit control. `--role` filters by normalized control type such as `button`, `edit`, or `pane`.
+
 ### List screens
 
 ```powershell
@@ -304,6 +320,17 @@ peekwin hotkey ctrl s
 peekwin hotkey --keys alt,tab
 peekwin hotkey lwin shift s
 ```
+
+### Send a key sequence
+
+```powershell
+peekwin keys alt tab
+peekwin keys down:alt tab right right up:alt
+peekwin keys down:ctrl l sleep:500 up:ctrl --app chrome
+peekwin keys --steps down:alt,tap:tab,tap:right,up:alt
+```
+
+Bare step tokens default to `tap:<key>`. Use `down:`, `up:`, and `sleep:` for stateful keyboard flows.
 
 ### Hold keys or a mouse button
 

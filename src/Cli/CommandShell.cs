@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using PeekWin.Infrastructure;
 using PeekWin.Models;
 using PeekWin.Services;
 
@@ -60,6 +61,7 @@ public sealed class CommandShell
                 "press" => await HandlePressAsync(args[1..]),
                 "hotkey" => HandleHotkey(args[1..]),
                 "keys" => await HandleKeysAsync(args[1..]),
+                "see" => HandleSee(args[1..]),
                 "hold" => await HandleHoldAsync(args[1..]),
                 "image" => HandleImageCommand(args[1..], "image"),
                 "screenshot" => HandleImageCommand(args[1..], "screenshot"),
@@ -147,6 +149,9 @@ public sealed class CommandShell
                 return;
             case "keys":
                 PrintKeysHelp();
+                return;
+            case "see":
+                PrintSeeHelp();
                 return;
             case "image":
             case "screenshot":
@@ -861,6 +866,66 @@ public sealed class CommandShell
         return 0;
     }
 
+    private int HandleSee(string[] args)
+    {
+        const string command = "see";
+        if (IsHelpRequest(args))
+        {
+            PrintSeeHelp();
+            return 0;
+        }
+
+        if (!TryParseOptions(command, args, out var options))
+        {
+            return 1;
+        }
+
+        EnsureNoPositionals(command, options);
+        var target = ParseTarget(command, options, allowScreen: false, allowWindow: true);
+        var resolvedTarget = ResolveSeeTarget(command, target);
+        var maxDepth = ResolveSeeMaxDepth(options);
+        var roleFilter = options.GetValueOrDefault("role");
+        var nameFilter = options.GetValueOrDefault("name");
+        var traversal = UiAutomationHelper.GetTree(resolvedTarget.WindowHandle!.Value, maxDepth);
+        if (!traversal.Success)
+        {
+            return Fail(command, traversal.Error ?? "UI Automation traversal failed.", options.HasFlag("json"));
+        }
+
+        var tree = traversal.Nodes;
+        var elements = ApplySeeFilters(tree, roleFilter, nameFilter).ToList();
+        var data = new
+        {
+            target = ToTargetData(resolvedTarget),
+            maxDepth,
+            filters = new { role = roleFilter, name = nameFilter },
+            total = tree.Count,
+            matched = elements.Count,
+            elements
+        };
+
+        if (options.HasFlag("json"))
+        {
+            WriteJsonEnvelope(true, command, data);
+            return 0;
+        }
+
+        Console.WriteLine($"Target: {resolvedTarget.Label}");
+        Console.WriteLine($"Depth: {maxDepth}");
+        if (!string.IsNullOrWhiteSpace(roleFilter) || !string.IsNullOrWhiteSpace(nameFilter))
+        {
+            Console.WriteLine($"Filters: role={roleFilter ?? "*"} name={nameFilter ?? "*"}");
+        }
+
+        foreach (var element in elements)
+        {
+            var indent = new string(' ', element.Depth * 2);
+            Console.WriteLine($"{indent}{element.Ref} {element.ControlType} | {element.Name} | AutomationId={element.AutomationId} | Bounds={FormatRect(element.Bounds)}");
+        }
+
+        return 0;
+    }
+
     private async Task<int> HandleHoldAsync(string[] args)
     {
         const string command = "hold";
@@ -1315,6 +1380,65 @@ public sealed class CommandShell
         return delayMs;
     }
 
+    private ResolvedTarget ResolveSeeTarget(string command, TargetSelector target)
+    {
+        if (target.Handle != 0 || !string.IsNullOrWhiteSpace(target.Title) || !string.IsNullOrWhiteSpace(target.App))
+        {
+            return ResolveWindowTarget(command, target) ?? throw new InvalidOperationException($"{command} requires a target.");
+        }
+
+        var hwnd = _windowService.GetForegroundWindowHandle();
+        if (hwnd == 0)
+        {
+            throw new InvalidOperationException("Could not determine the current foreground window.");
+        }
+
+        var window = _windowService.FindWindow(hwnd);
+        if (window is not null)
+        {
+            return new ResolvedTarget("window", window.Title, window.Bounds, ParseHandle(window.Handle), AppName: window.ProcessName);
+        }
+
+        var inspection = _windowService.InspectWindowHandle(hwnd);
+        var label = string.IsNullOrWhiteSpace(inspection.Title)
+            ? $"0x{hwnd.ToInt64():X}"
+            : inspection.Title;
+        return new ResolvedTarget("window", label, inspection.Bounds, hwnd, AppName: inspection.ProcessName);
+    }
+
+    private static int ResolveSeeMaxDepth(OptionSet options)
+    {
+        var explicitDepth = ReadNonNegativeInt(options, "max-depth");
+        if (explicitDepth is not null)
+        {
+            return explicitDepth.Value;
+        }
+
+        return options.HasFlag("deep") ? 32 : 1;
+    }
+
+    private static IReadOnlyList<AutomationTreeNode> ApplySeeFilters(IReadOnlyList<AutomationTreeNode> elements, string? roleFilter, string? nameFilter)
+        => elements
+            .Where(element => MatchesSeeRole(element, roleFilter) && MatchesSeeName(element, nameFilter))
+            .ToList();
+
+    private static bool MatchesSeeRole(AutomationTreeNode element, string? roleFilter)
+    {
+        if (string.IsNullOrWhiteSpace(roleFilter))
+        {
+            return true;
+        }
+
+        var normalized = roleFilter.Trim();
+        return element.Role.Equals(normalized, StringComparison.OrdinalIgnoreCase)
+            || element.ControlType.Equals(normalized, StringComparison.OrdinalIgnoreCase)
+            || element.ControlType.Equals($"ControlType.{normalized}", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool MatchesSeeName(AutomationTreeNode element, string? nameFilter)
+        => string.IsNullOrWhiteSpace(nameFilter)
+            || element.Name.Contains(nameFilter, StringComparison.OrdinalIgnoreCase);
+
     private static IReadOnlyList<string> ResolveKeys(string command, OptionSet options)
     {
         if (options.HasValue("keys"))
@@ -1602,6 +1726,7 @@ public sealed class CommandShell
         Console.WriteLine("  peekwin window list [--all] [--app <name>] [--title <text>] [--json]");
         Console.WriteLine("  peekwin window focus|inspect|close|minimize|maximize|restore ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) [--json]");
         Console.WriteLine("  peekwin app list [--name <text>] [--json]");
+        Console.WriteLine("  peekwin see [[--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>] [--deep | --max-depth <n>] [--role <name>] [--name <text>] [--json]");
         Console.WriteLine("  peekwin desktop list|current [--json]");
         Console.WriteLine("  peekwin desktop switch <index> [--delay-ms <n>] [--json]");
         Console.WriteLine("  peekwin screens [--json]");
@@ -1658,6 +1783,7 @@ public sealed class CommandShell
     {
         Console.WriteLine("App commands:");
         Console.WriteLine("  peekwin app list [--name <text>] [--json]");
+        Console.WriteLine("  peekwin see [[--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>] [--deep | --max-depth <n>] [--role <name>] [--name <text>] [--json]");
     }
 
     private static void PrintDesktopHelp()
@@ -1679,6 +1805,16 @@ public sealed class CommandShell
         Console.WriteLine("  peekwin mouse down [--button left|right] [--x <n> --y <n>] [target] [--json]");
         Console.WriteLine("  peekwin mouse up [--button left|right] [--x <n> --y <n>] [target] [--json]");
         Console.WriteLine("  target = --screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND>");
+    }
+
+    private static void PrintSeeHelp()
+    {
+        Console.WriteLine("See commands:");
+        Console.WriteLine("  peekwin see [[--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>] [--deep | --max-depth <n>] [--role <name>] [--name <text>] [--json]");
+        Console.WriteLine("  without a target, see uses the current foreground window");
+        Console.WriteLine("  examples: peekwin see --title \"Notepad\" --json");
+        Console.WriteLine("            peekwin see --app chrome --deep --json");
+        Console.WriteLine("            peekwin see --role button --name Save --json");
     }
 
     private static void PrintKeysHelp()
