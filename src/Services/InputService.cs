@@ -133,22 +133,38 @@ public sealed class InputService
         }
     }
 
-    public async Task PasteTextAsync(string text, int restoreDelayMs)
+    public Task PasteTextAsync(string text, int restoreDelayMs)
     {
-        var snapshot = WithClipboardRetry(CaptureClipboardSnapshot);
-        try
+        RunSta(() =>
         {
-            WithClipboardRetry(() => SetClipboardText(text));
-            Hotkey(["ctrl", "v"]);
-            if (restoreDelayMs > 0)
+            var snapshot = RetryClipboard(CaptureClipboardSnapshot);
+            try
             {
-                await Task.Delay(restoreDelayMs).ConfigureAwait(false);
+                RetryClipboard(() =>
+                {
+                    SetClipboardText(text);
+                    return 0;
+                });
+
+                Hotkey(["ctrl", "v"]);
+                if (restoreDelayMs > 0)
+                {
+                    Thread.Sleep(restoreDelayMs);
+                }
             }
-        }
-        finally
-        {
-            WithClipboardRetry(() => RestoreClipboardSnapshot(snapshot));
-        }
+            finally
+            {
+                RetryClipboard(() =>
+                {
+                    RestoreClipboardSnapshot(snapshot);
+                    return 0;
+                });
+            }
+
+            return 0;
+        });
+
+        return Task.CompletedTask;
     }
 
     public async Task PressKeyAsync(string key, int repeat, int delayMs)
@@ -468,13 +484,16 @@ public sealed class InputService
         });
 
     private static T WithClipboardRetry<T>(Func<T> action)
+        => RunSta(() => RetryClipboard(action));
+
+    private static T RetryClipboard<T>(Func<T> action)
     {
         Exception? lastError = null;
         for (var attempt = 0; attempt < 10; attempt++)
         {
             try
             {
-                return RunSta(action);
+                return action();
             }
             catch (Exception ex) when (ex is ExternalException or COMException)
             {
