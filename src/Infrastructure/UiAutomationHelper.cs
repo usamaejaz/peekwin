@@ -174,6 +174,29 @@ internal static class UiAutomationHelper
         return true;
     }
 
+    public static bool TryGetNodeByPath(nint hwnd, string path, out AutomationTreeNode node)
+    {
+        node = default!;
+        var result = WithElementByPath(hwnd, path, element =>
+        {
+            var segments = path.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            return CreateNode(
+                element,
+                currentRef: string.Empty,
+                parentRef: null,
+                path,
+                depth: Math.Max(segments.Length - 1, 0));
+        });
+
+        if (result is null)
+        {
+            return false;
+        }
+
+        node = result;
+        return true;
+    }
+
     private static T? WithElementByPath<T>(nint hwnd, string path, Func<IUIAutomationElement, T?> selector)
     {
         object? automationObject = null;

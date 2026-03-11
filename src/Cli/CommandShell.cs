@@ -891,8 +891,7 @@ public sealed class CommandShell
         var target = ParseTarget(command, options, allowScreen: false, allowWindow: true);
         var resolvedTarget = ResolveSeeTarget(command, target);
         var maxDepth = ResolveSeeMaxDepth(options);
-        var roleFilter = options.GetValueOrDefault("role");
-        var nameFilter = options.GetValueOrDefault("name");
+        var filters = ResolveSeeFilters(options);
         var traversal = UiAutomationHelper.GetTree(resolvedTarget.WindowHandle!.Value, maxDepth);
         if (!traversal.Success)
         {
@@ -900,15 +899,24 @@ public sealed class CommandShell
         }
 
         var tree = traversal.Nodes;
-        _automationSnapshotService.SaveSnapshot(resolvedTarget.Label, resolvedTarget.AppName, resolvedTarget.WindowHandle!.Value, resolvedTarget.Bounds, maxDepth, tree);
-        var elements = ApplySeeFilters(tree, roleFilter, nameFilter).ToList();
+        var inspection = _windowService.InspectWindow(resolvedTarget.WindowHandle!.Value);
+        _automationSnapshotService.SaveSnapshot(inspection, maxDepth, tree);
+        var elements = ApplySeeFilters(tree, filters).ToList();
         var data = new
         {
             target = ToTargetData(resolvedTarget),
             maxDepth,
-            filters = new { role = roleFilter, name = nameFilter },
+            filters = new
+            {
+                mode = filters.Compact ? "compact" : "all",
+                visible = filters.VisibleOnly,
+                interactive = filters.InteractiveOnly,
+                role = filters.Role,
+                name = filters.Name
+            },
             total = tree.Count,
             matched = elements.Count,
+            hidden = tree.Count - elements.Count,
             elements
         };
 
@@ -920,15 +928,12 @@ public sealed class CommandShell
 
         Console.WriteLine($"Target: {resolvedTarget.Label}");
         Console.WriteLine($"Depth: {maxDepth}");
-        if (!string.IsNullOrWhiteSpace(roleFilter) || !string.IsNullOrWhiteSpace(nameFilter))
-        {
-            Console.WriteLine($"Filters: role={roleFilter ?? "*"} name={nameFilter ?? "*"}");
-        }
+        Console.WriteLine($"Mode: {(filters.Compact ? "compact" : "all")} ({elements.Count}/{tree.Count} shown)");
+        Console.WriteLine($"Filters: visible={(filters.VisibleOnly ? "yes" : "no")} interactive={(filters.InteractiveOnly ? "yes" : "no")} role={filters.Role ?? "*"} name={filters.Name ?? "*"}");
 
         foreach (var element in elements)
         {
-            var indent = new string(' ', element.Depth * 2);
-            Console.WriteLine($"{indent}{element.Ref} {element.ControlType} | {element.Name} | AutomationId={element.AutomationId} | Bounds={FormatRect(element.Bounds)}");
+            Console.WriteLine(FormatSeeElement(element));
         }
 
         return 0;
@@ -1223,16 +1228,38 @@ public sealed class CommandShell
     private ResolvedTarget ResolveRefTarget(string reference)
     {
         var target = _automationSnapshotService.ResolveRef(reference);
-        var bounds = target.Bounds;
-        if (!string.IsNullOrWhiteSpace(target.Path) && UiAutomationHelper.TryGetBoundsByPath(target.WindowHandle, target.Path!, out var liveBounds) && liveBounds.Width > 0 && liveBounds.Height > 0)
+        var window = _windowService.FindWindow(target.WindowHandle)
+            ?? throw new InvalidOperationException($"UI ref {reference} is stale: source window 0x{target.WindowHandle.ToInt64():X} no longer exists. Run `peekwin see` again.");
+
+        if (!string.Equals(window.ProcessName, target.AppName, StringComparison.OrdinalIgnoreCase)
+            || window.ProcessId != target.ProcessId
+            || !string.Equals(window.ClassName, target.WindowClassName, StringComparison.Ordinal)
+            || !string.Equals(window.Title, target.WindowTitle, StringComparison.Ordinal))
         {
-            bounds = liveBounds;
+            throw new InvalidOperationException($"UI ref {reference} is stale: source window changed since the last `peekwin see`. Run `peekwin see` again.");
+        }
+
+        if (string.IsNullOrWhiteSpace(target.Path) || !UiAutomationHelper.TryGetNodeByPath(target.WindowHandle, target.Path!, out var liveNode))
+        {
+            throw new InvalidOperationException($"UI ref {reference} is stale: element no longer exists at the saved path. Run `peekwin see` again.");
+        }
+
+        if (!string.Equals(liveNode.ControlType, target.ControlType, StringComparison.Ordinal)
+            || (!string.IsNullOrWhiteSpace(target.AutomationId) && !string.Equals(liveNode.AutomationId, target.AutomationId, StringComparison.Ordinal))
+            || (!string.IsNullOrWhiteSpace(target.Name) && !string.Equals(liveNode.Name, target.Name, StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException($"UI ref {reference} is stale: element identity changed since the last `peekwin see`. Run `peekwin see` again.");
+        }
+
+        if (liveNode.Bounds.Width <= 0 || liveNode.Bounds.Height <= 0)
+        {
+            throw new InvalidOperationException($"UI ref {reference} is stale: live element bounds are invalid. Run `peekwin see` again.");
         }
 
         var label = string.IsNullOrWhiteSpace(target.Name)
             ? target.Ref
             : $"{target.Ref} {target.ControlType} {target.Name}";
-        return new ResolvedTarget("element", label, bounds, target.WindowHandle, AppName: target.AppName, Ref: target.Ref, Path: target.Path);
+        return new ResolvedTarget("element", label, liveNode.Bounds, target.WindowHandle, AppName: target.AppName, Ref: target.Ref, Path: target.Path);
     }
 
     private bool FocusResolvedTargetIfNeeded(string command, ResolvedTarget? target, bool asJson)
@@ -1249,10 +1276,11 @@ public sealed class CommandShell
                 return true;
             }
 
-            var centerX = target.Bounds.Left + target.Bounds.Width / 2;
-            var centerY = target.Bounds.Top + target.Bounds.Height / 2;
-            _inputService.Click(centerX, centerY, MouseButton.Left, isDouble: false);
-            return true;
+            WriteResult(
+                command,
+                CommandResult.Error("Target UI element could not be focused because the saved ref is no longer valid. Run `peekwin see` again."),
+                asJson);
+            return false;
         }
 
         var result = _windowService.FocusWindow(target.WindowHandle.Value);
@@ -1481,10 +1509,63 @@ public sealed class CommandShell
         return options.HasFlag("deep") ? 32 : 1;
     }
 
-    private static IReadOnlyList<AutomationTreeNode> ApplySeeFilters(IReadOnlyList<AutomationTreeNode> elements, string? roleFilter, string? nameFilter)
+    private static SeeFilterOptions ResolveSeeFilters(OptionSet options)
+        => new(
+            Compact: !(options.HasFlag("all") || options.HasFlag("raw")),
+            VisibleOnly: options.HasFlag("visible") || options.HasFlag("on-screen") || options.HasFlag("onscreen"),
+            InteractiveOnly: options.HasFlag("interactive"),
+            Role: options.GetValueOrDefault("role"),
+            Name: options.GetValueOrDefault("name"));
+
+    private static IReadOnlyList<AutomationTreeNode> ApplySeeFilters(IReadOnlyList<AutomationTreeNode> elements, SeeFilterOptions filters)
         => elements
-            .Where(element => MatchesSeeRole(element, roleFilter) && MatchesSeeName(element, nameFilter))
+            .Where(element => MatchesSeeCompactDefaults(element, filters.Compact)
+                && MatchesSeeVisibility(element, filters.VisibleOnly)
+                && MatchesSeeInteractivity(element, filters.InteractiveOnly)
+                && MatchesSeeRole(element, filters.Role)
+                && MatchesSeeName(element, filters.Name))
             .ToList();
+
+    private static bool MatchesSeeCompactDefaults(AutomationTreeNode element, bool compact)
+    {
+        if (!compact || element.Depth == 0)
+        {
+            return true;
+        }
+
+        if (element.Bounds.Width <= 0 || element.Bounds.Height <= 0)
+        {
+            return false;
+        }
+
+        if (element.IsOffscreen)
+        {
+            return false;
+        }
+
+        var hasName = !string.IsNullOrWhiteSpace(element.Name);
+        var hasAutomationId = !string.IsNullOrWhiteSpace(element.AutomationId);
+        if (!hasName && !hasAutomationId)
+        {
+            if (element.Role is "pane" or "image" or "group")
+            {
+                return false;
+            }
+
+            if (!element.IsKeyboardFocusable && !element.IsEnabled && element.Role is "text" or "custom")
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool MatchesSeeVisibility(AutomationTreeNode element, bool visibleOnly)
+        => !visibleOnly || (!element.IsOffscreen && element.Bounds.Width > 0 && element.Bounds.Height > 0);
+
+    private static bool MatchesSeeInteractivity(AutomationTreeNode element, bool interactiveOnly)
+        => !interactiveOnly || (element.IsEnabled && (element.IsKeyboardFocusable || element.Role is "button" or "checkbox" or "combobox" or "edit" or "hyperlink" or "listitem" or "menuitem" or "radiobutton" or "tabitem"));
 
     private static bool MatchesSeeRole(AutomationTreeNode element, string? roleFilter)
     {
@@ -1502,6 +1583,36 @@ public sealed class CommandShell
     private static bool MatchesSeeName(AutomationTreeNode element, string? nameFilter)
         => string.IsNullOrWhiteSpace(nameFilter)
             || element.Name.Contains(nameFilter, StringComparison.OrdinalIgnoreCase);
+
+    private static string FormatSeeElement(AutomationTreeNode element)
+    {
+        var indent = new string(' ', element.Depth * 2);
+        var label = string.IsNullOrWhiteSpace(element.Name) ? "<unnamed>" : element.Name;
+        var extras = new List<string>();
+        if (!string.IsNullOrWhiteSpace(element.AutomationId))
+        {
+            extras.Add($"id={element.AutomationId}");
+        }
+
+        extras.Add($"bounds={FormatRect(element.Bounds)}");
+
+        if (!element.IsEnabled)
+        {
+            extras.Add("disabled");
+        }
+
+        if (element.IsKeyboardFocusable)
+        {
+            extras.Add("focusable");
+        }
+
+        if (element.IsOffscreen)
+        {
+            extras.Add("offscreen");
+        }
+
+        return $"{indent}{element.Ref} {element.ControlType} \"{label}\" [{string.Join(", ", extras)}]";
+    }
 
     private static IReadOnlyList<string> ResolveKeys(string command, OptionSet options)
     {
@@ -1875,11 +1986,13 @@ public sealed class CommandShell
     private static void PrintSeeHelp()
     {
         Console.WriteLine("See commands:");
-        Console.WriteLine("  peekwin see [[--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>] [--deep | --max-depth <n>] [--role <name>] [--name <text>] [--json]");
+        Console.WriteLine("  peekwin see [[--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>] [--deep | --max-depth <n>] [--visible] [--interactive] [--role <name>] [--name <text>] [--all|--raw] [--json]");
         Console.WriteLine("  without a target, see uses the current foreground window");
-        Console.WriteLine("  examples: peekwin see --title \"Notepad\" --json");
-        Console.WriteLine("            peekwin see --app chrome --deep --json");
-        Console.WriteLine("            peekwin see --role button --name Save --json");
+        Console.WriteLine("  default mode is compact: hides off-screen, 0x0, and obvious unnamed wrapper noise");
+        Console.WriteLine("  use --all or --raw for the full tree; add --visible or --interactive for stricter filtering");
+        Console.WriteLine("  examples: peekwin see --title \"Notepad\"");
+        Console.WriteLine("            peekwin see --app chrome --deep --visible --interactive --json");
+        Console.WriteLine("            peekwin see --all --role button --name Save --json");
     }
 
     private static void PrintKeysHelp()
@@ -1906,6 +2019,8 @@ public sealed class CommandShell
         Console.WriteLine("  peekwin screenshot ...             alias for 'peekwin image'");
         Console.WriteLine("  peekwin image info [--json]        alias for 'peekwin screens'");
     }
+
+    private sealed record SeeFilterOptions(bool Compact, bool VisibleOnly, bool InteractiveOnly, string? Role, string? Name);
 
     private sealed record JsonEnvelope(bool Success, string Command, object? Data, string? Error);
 
