@@ -25,7 +25,12 @@ public sealed class ScreenshotService
 
     public CommandResult Capture(string outputPath, RectDto bounds, object? details = null)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? Environment.CurrentDirectory);
+        var directory = Path.GetDirectoryName(outputPath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
         CaptureArea(outputPath, bounds.Left, bounds.Top, bounds.Width, bounds.Height);
         return CommandResult.Ok($"Saved image to {outputPath}.", outputPath, details);
     }
