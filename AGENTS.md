@@ -73,7 +73,7 @@ By default `window list` filters to visible windows; use `--all` to include hidd
 .\scripts\smoke-test.ps1
 ```
 
-**Publishing:** Self-contained releases via GitHub Actions on `v*` tags. Archives include runtime (no .NET install required). See [README.md](README.md#releases) for tagging.
+**Publishing:** Self-contained releases via GitHub Actions on `v*` tags. Release assets are direct `.exe` files that include the runtime (no .NET install required). See [README.md](README.md#releases) for tagging.
 
 ## Common Patterns
 
