@@ -1283,7 +1283,12 @@ public sealed class CommandShell
     private static KeySequenceStep ParseKeySequenceStep(string raw)
     {
         var separatorIndex = raw.IndexOf(':');
-        if (separatorIndex <= 0 || separatorIndex == raw.Length - 1)
+        if (separatorIndex < 0)
+        {
+            return new KeySequenceStep("tap", raw.Trim(), null);
+        }
+
+        if (separatorIndex == 0 || separatorIndex == raw.Length - 1)
         {
             throw new InvalidOperationException($"Invalid key sequence step: {raw}. Expected kind:value.");
         }
@@ -1679,7 +1684,7 @@ public sealed class CommandShell
     {
         Console.WriteLine("Key sequence commands:");
         Console.WriteLine("  peekwin keys [steps...] [--steps <value>] [--delay-ms <n>] [--app <name> | --title <text> | --handle <HWND> | --window <HWND>] [--json]");
-        Console.WriteLine("  step forms: tap:<key>, down:<key>, up:<key>, sleep:<ms>");
+        Console.WriteLine("  step forms: <key>, tap:<key>, down:<key>, up:<key>, sleep:<ms>");
         Console.WriteLine("  example: peekwin keys down:alt tap:tab tap:right tap:right up:alt --app explorer");
     }
 
