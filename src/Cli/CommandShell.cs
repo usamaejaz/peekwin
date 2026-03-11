@@ -500,8 +500,8 @@ public sealed class CommandShell
         WriteResult(
             command,
             CommandResult.Ok(
-                $"Clicked {button.ToString().ToLowerInvariant()} at {point.X},{point.Y}.",
-                details: new { button, point = new { x = point.X, y = point.Y }, target = ToTargetData(resolvedTarget) }),
+                $"Clicked {button.ToString().ToLowerInvariant()} at {FormatPointForMessage(resolvedTarget, point.X, point.Y)}.",
+                details: new { button, point = ToPointData(point.X, point.Y), relativePoint = ToRelativePointData(resolvedTarget, point.X, point.Y), target = ToTargetData(resolvedTarget) }),
             options.HasFlag("json"));
         return 0;
     }
@@ -531,8 +531,8 @@ public sealed class CommandShell
         WriteResult(
             command,
             CommandResult.Ok(
-                $"Moved cursor to {point.X},{point.Y}.",
-                details: new { point = new { x = point.X, y = point.Y }, durationMs, steps, target = ToTargetData(resolvedTarget) }),
+                $"Moved cursor to {FormatPointForMessage(resolvedTarget, point.X, point.Y)}.",
+                details: new { point = ToPointData(point.X, point.Y), relativePoint = ToRelativePointData(resolvedTarget, point.X, point.Y), durationMs, steps, target = ToTargetData(resolvedTarget) }),
             options.HasFlag("json"));
         return 0;
     }
@@ -564,12 +564,14 @@ public sealed class CommandShell
         WriteResult(
             command,
             CommandResult.Ok(
-                $"Dragged {button.ToString().ToLowerInvariant()} from {start.X},{start.Y} to {end.X},{end.Y}.",
+                $"Dragged {button.ToString().ToLowerInvariant()} from {FormatPointForMessage(resolvedTarget, start.X, start.Y)} to {FormatPointForMessage(resolvedTarget, end.X, end.Y)}.",
                 details: new
                 {
                     button,
-                    start = new { x = start.X, y = start.Y },
-                    end = new { x = end.X, y = end.Y },
+                    start = ToPointData(start.X, start.Y),
+                    relativeStart = ToRelativePointData(resolvedTarget, start.X, start.Y),
+                    end = ToPointData(end.X, end.Y),
+                    relativeEnd = ToRelativePointData(resolvedTarget, end.X, end.Y),
                     durationMs,
                     steps,
                     target = ToTargetData(resolvedTarget)
@@ -615,10 +617,11 @@ public sealed class CommandShell
         WriteResult(
             command,
             CommandResult.Ok(
-                $"Scrolled at {point.X},{point.Y}.",
+                $"Scrolled at {FormatPointForMessage(resolvedTarget, point.X, point.Y)}.",
                 details: new
                 {
-                    point = new { x = point.X, y = point.Y },
+                    point = ToPointData(point.X, point.Y),
+                    relativePoint = ToRelativePointData(resolvedTarget, point.X, point.Y),
                     delta = verticalDelta,
                     deltaX = horizontalDelta,
                     target = ToTargetData(resolvedTarget)
@@ -674,8 +677,10 @@ public sealed class CommandShell
         WriteResult(
             command,
             CommandResult.Ok(
-                $"{(isDown ? "Pressed" : "Released")} {button.ToString().ToLowerInvariant()} mouse button.",
-                details: new { button, point = point is null ? null : new { x = point.Value.X, y = point.Value.Y }, target = ToTargetData(resolvedTarget) }),
+                point is null
+                    ? $"{(isDown ? "Pressed" : "Released")} {button.ToString().ToLowerInvariant()} mouse button."
+                    : $"{(isDown ? "Pressed" : "Released")} {button.ToString().ToLowerInvariant()} mouse button at {FormatPointForMessage(resolvedTarget, point.Value.X, point.Value.Y)}.",
+                details: new { button, point = point is null ? null : ToPointData(point.Value.X, point.Value.Y), relativePoint = point is null ? null : ToRelativePointData(resolvedTarget, point.Value.X, point.Value.Y), target = ToTargetData(resolvedTarget) }),
             options.HasFlag("json"));
         return 0;
     }
@@ -1409,6 +1414,26 @@ public sealed class CommandShell
 
     private static void WriteJsonEnvelope(bool success, string command, object? data, string? error = null)
         => Console.WriteLine(JsonSerializer.Serialize(new JsonEnvelope(success, command, data, error), JsonOptions));
+
+    private static object ToPointData(int x, int y)
+        => new { x, y };
+
+    private static object? ToRelativePointData(ResolvedTarget? target, int x, int y)
+        => target is null
+            ? null
+            : new { x = x - target.Bounds.Left, y = y - target.Bounds.Top };
+
+    private static string FormatPointForMessage(ResolvedTarget? target, int x, int y)
+    {
+        if (target is null)
+        {
+            return $"{x},{y}";
+        }
+
+        var relativeX = x - target.Bounds.Left;
+        var relativeY = y - target.Bounds.Top;
+        return $"{relativeX},{relativeY} relative to {target.Label} ({x},{y} absolute)";
+    }
 
     private static object? ToTargetData(ResolvedTarget? target)
         => target is null
