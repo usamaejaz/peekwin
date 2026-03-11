@@ -1,6 +1,7 @@
 namespace PeekWin.Models;
 
 public sealed record AutomationRefTarget(
+    string SnapshotId,
     string Ref,
     string TargetLabel,
     string? AppName,

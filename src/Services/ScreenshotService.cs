@@ -20,6 +20,7 @@ public sealed class ScreenshotService
 
         return new ScreenLayoutInfo(
             GetVirtualScreenBounds(),
+            0,
             screens);
     }
 

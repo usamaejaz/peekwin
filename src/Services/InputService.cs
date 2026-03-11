@@ -11,21 +11,34 @@ public sealed class InputService
     public void Click(int x, int y, MouseButton button, bool isDouble)
     {
         MoveMouse(x, y);
-        var count = isDouble ? 2 : 1;
-        for (var i = 0; i < count; i++)
+        ClickOnce(button);
+
+        if (isDouble)
         {
-            MouseDown(button);
-            MouseUp(button);
+            ClickOnce(button);
         }
     }
 
     public async Task ClickAsync(int x, int y, MouseButton button, bool isDouble, int delayMs)
     {
-        Click(x, y, button, isDouble);
-        if (delayMs > 0 && isDouble)
+        MoveMouse(x, y);
+        ClickOnce(button);
+
+        if (isDouble)
         {
-            await Task.Delay(delayMs).ConfigureAwait(false);
+            if (delayMs > 0)
+            {
+                await Task.Delay(delayMs).ConfigureAwait(false);
+            }
+
+            ClickOnce(button);
         }
+    }
+
+    private void ClickOnce(MouseButton button)
+    {
+        MouseDown(button);
+        MouseUp(button);
     }
 
     public void MoveMouse(int x, int y)

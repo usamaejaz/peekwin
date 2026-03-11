@@ -2,7 +2,8 @@ param(
     [string]$Configuration = "Debug",
     [string]$ProjectPath = ".\src\peekwin.csproj",
     [string]$OutputPath = ".\artifacts\smoke-test.png",
-    [switch]$IncludeInputInjection
+    [switch]$IncludeInputInjection,
+    [switch]$SkipBuild
 )
 
 $ErrorActionPreference = "Stop"
@@ -12,6 +13,17 @@ if (-not $IsWindows) {
 }
 
 $workspaceRoot = Split-Path -Parent $PSScriptRoot
+
+function Get-PeekwinVersion {
+    $propsPath = Join-Path $workspaceRoot "Directory.Build.props"
+    [xml]$props = Get-Content -Path $propsPath
+    $version = $props.Project.PropertyGroup.PeekWinVersion
+    if (-not $version) {
+        throw "Could not read PeekWinVersion from $propsPath"
+    }
+
+    return [string]$version
+}
 
 function Invoke-PeekwinCommand {
     param(
@@ -50,10 +62,14 @@ function ConvertFrom-PeekwinJson {
 
 Push-Location $workspaceRoot
 try {
-    Write-Host "Building peekwin ($Configuration)..."
-    dotnet build $ProjectPath -c $Configuration | Out-Host
-    if ($LASTEXITCODE -ne 0) {
-        throw "dotnet build failed with exit code $LASTEXITCODE."
+    $expectedVersion = Get-PeekwinVersion
+
+    if (-not $SkipBuild) {
+        Write-Host "Building peekwin ($Configuration)..."
+        dotnet build $ProjectPath -c $Configuration | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+            throw "dotnet build failed with exit code $LASTEXITCODE."
+        }
     }
 
     $resolvedOutput = if ([System.IO.Path]::IsPathRooted($OutputPath)) {
@@ -72,13 +88,24 @@ try {
         Remove-Item $resolvedOutput -Force
     }
 
-    Invoke-PeekwinCommand -Name "version" -Args @("run", "--project", $ProjectPath, "--", "version") | Out-Null
-    Invoke-PeekwinCommand -Name "leading verbose version" -Args @("run", "--project", $ProjectPath, "--", "--verbose", "version") | Out-Null
+    $refImageOutput = Join-Path $workspaceRoot "artifacts\smoke-test-ref.png"
+    if (Test-Path $refImageOutput) {
+        Remove-Item $refImageOutput -Force
+    }
+
+    Invoke-PeekwinCommand -Name "version" -Args @("run", "--project", $ProjectPath, "--", "version") -ExpectedOutput $expectedVersion | Out-Null
+    Invoke-PeekwinCommand -Name "leading verbose version" -Args @("run", "--project", $ProjectPath, "--", "--verbose", "version") -ExpectedOutput $expectedVersion | Out-Null
+    Invoke-PeekwinCommand -Name "move help" -Args @("run", "--project", $ProjectPath, "--", "move", "--help") -ExpectedOutput "--ref <id>" | Out-Null
+    Invoke-PeekwinCommand -Name "type help" -Args @("run", "--project", $ProjectPath, "--", "type", "--help") -ExpectedOutput "--ref <id>" | Out-Null
+    Invoke-PeekwinCommand -Name "image help" -Args @("run", "--project", $ProjectPath, "--", "image", "--help") -ExpectedOutput "--ref <id>" | Out-Null
+    Invoke-PeekwinCommand -Name "screens help" -Args @("run", "--project", $ProjectPath, "--", "screens", "--help") -ExpectedOutput "zero-based" | Out-Null
 
     $visibleWindowsJson = Invoke-PeekwinCommand -Name "window list json" -Args @("run", "--project", $ProjectPath, "--", "window", "list", "--json") -ExpectedOutput '"command": "window list"'
     $allWindowsJson = Invoke-PeekwinCommand -Name "window list all json" -Args @("run", "--project", $ProjectPath, "--", "window", "list", "--all", "--json") -ExpectedOutput '"windows"'
     $appsJson = Invoke-PeekwinCommand -Name "app list json" -Args @("run", "--project", $ProjectPath, "--", "app", "list", "--json") -ExpectedOutput '"apps"'
-    $screensJson = Invoke-PeekwinCommand -Name "screens json" -Args @("run", "--project", $ProjectPath, "--", "screens", "--json") -ExpectedOutput '"virtualBounds"'
+    $screensJson = Invoke-PeekwinCommand -Name "screens json" -Args @("run", "--project", $ProjectPath, "--", "screens", "--json") -ExpectedOutput '"screenIndexBase"'
+    $imageInfoJson = Invoke-PeekwinCommand -Name "image info json" -Args @("run", "--project", $ProjectPath, "--", "image", "info", "--json") -ExpectedOutput '"screenIndexBase"'
+    $screenshotInfoJson = Invoke-PeekwinCommand -Name "screenshot info json" -Args @("run", "--project", $ProjectPath, "--", "screenshot", "info", "--json") -ExpectedOutput '"screenIndexBase"'
     $desktopCurrentJson = Invoke-PeekwinCommand -Name "desktop current json" -Args @("run", "--project", $ProjectPath, "--", "desktop", "current", "--json") -ExpectedOutput '"desktop"'
     Invoke-PeekwinCommand -Name "parse error json" -Args @("run", "--project", $ProjectPath, "--", "window", "list", "extra", "--json") -ExpectedExitCode 1 -ExpectedOutput '"success": false' | Out-Null
     Invoke-PeekwinCommand -Name "image" -Args @("run", "--project", $ProjectPath, "--", "image", "--screen", "0", "--output", $resolvedOutput) | Out-Null
@@ -88,9 +115,11 @@ try {
     $allEnvelope = ConvertFrom-PeekwinJson -Json $allWindowsJson
     $appsEnvelope = ConvertFrom-PeekwinJson -Json $appsJson
     $screensEnvelope = ConvertFrom-PeekwinJson -Json $screensJson
+    $imageInfoEnvelope = ConvertFrom-PeekwinJson -Json $imageInfoJson
+    $screenshotInfoEnvelope = ConvertFrom-PeekwinJson -Json $screenshotInfoJson
     $desktopCurrentEnvelope = ConvertFrom-PeekwinJson -Json $desktopCurrentJson
 
-    if (-not $visibleEnvelope.success -or -not $allEnvelope.success -or -not $appsEnvelope.success -or -not $screensEnvelope.success -or -not $desktopCurrentEnvelope.success) {
+    if (-not $visibleEnvelope.success -or -not $allEnvelope.success -or -not $appsEnvelope.success -or -not $screensEnvelope.success -or -not $imageInfoEnvelope.success -or -not $screenshotInfoEnvelope.success -or -not $desktopCurrentEnvelope.success) {
         throw "Expected JSON envelope success for list commands."
     }
 
@@ -104,6 +133,10 @@ try {
         throw "Expected at least one screen."
     }
 
+    if ($screensEnvelope.data.screenIndexBase -ne 0 -or $imageInfoEnvelope.data.screenIndexBase -ne 0 -or $screenshotInfoEnvelope.data.screenIndexBase -ne 0) {
+        throw "Expected zero-based screen indexes from screens/image info/screenshot info."
+    }
+
     if (-not (Test-Path $resolvedOutput)) {
         throw "Expected image output was not created: $resolvedOutput"
     }
@@ -115,6 +148,7 @@ try {
             Start-Sleep -Milliseconds 500
             Invoke-PeekwinCommand -Name "focus notepad" -Args @("run", "--project", $ProjectPath, "--", "window", "focus", "--title", "Notepad") | Out-Null
             Invoke-PeekwinCommand -Name "inspect notepad by title" -Args @("run", "--project", $ProjectPath, "--", "window", "inspect", "--title", "Notepad", "--json") -ExpectedOutput '"processName"' | Out-Null
+            $seeJson = Invoke-PeekwinCommand -Name "see notepad json" -Args @("run", "--project", $ProjectPath, "--", "see", "--title", "Notepad", "--json") -ExpectedOutput '"snapshot"'
             Invoke-PeekwinCommand -Name "type positional -v" -Args @("run", "--project", $ProjectPath, "--", "type", "-v", "--delay-ms", "1") | Out-Null
             Invoke-PeekwinCommand -Name "paste positional" -Args @("run", "--project", $ProjectPath, "--", "paste", "hello") | Out-Null
             Invoke-PeekwinCommand -Name "move duration" -Args @("run", "--project", $ProjectPath, "--", "move", "--x", "100", "--y", "100", "--duration-ms", "25") | Out-Null
@@ -123,6 +157,22 @@ try {
             Invoke-PeekwinCommand -Name "hold keys" -Args @("run", "--project", $ProjectPath, "--", "hold", "shift", "ctrl", "--duration-ms", "25") | Out-Null
             Invoke-PeekwinCommand -Name "hold mouse" -Args @("run", "--project", $ProjectPath, "--", "hold", "--button", "left", "--duration-ms", "25") | Out-Null
             Invoke-PeekwinCommand -Name "desktop list" -Args @("run", "--project", $ProjectPath, "--", "desktop", "list") | Out-Null
+
+            $seeEnvelope = ConvertFrom-PeekwinJson -Json $seeJson
+            if (-not $seeEnvelope.success -or -not $seeEnvelope.data.snapshot.id) {
+                throw "Expected see JSON to include snapshot metadata."
+            }
+
+            $refTarget = @($seeEnvelope.data.elements | Where-Object { $_.depth -ge 1 -and $_.bounds.width -gt 0 -and $_.bounds.height -gt 0 }) | Select-Object -First 1
+            if (-not $refTarget) {
+                throw "Expected see to return at least one usable child ref."
+            }
+
+            Invoke-PeekwinCommand -Name "click ref json" -Args @("run", "--project", $ProjectPath, "--", "click", "--ref", $refTarget.ref, "--json") -ExpectedOutput '"message"' | Out-Null
+            Invoke-PeekwinCommand -Name "image ref" -Args @("run", "--project", $ProjectPath, "--", "image", "--ref", $refTarget.ref, "--output", $refImageOutput) | Out-Null
+            if (-not (Test-Path $refImageOutput)) {
+                throw "Expected ref image output was not created: $refImageOutput"
+            }
         }
         finally {
             if ($notepad -and -not $notepad.HasExited) {
