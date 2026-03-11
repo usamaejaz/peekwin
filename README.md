@@ -187,12 +187,11 @@ peekwin window close --title "Notepad"
 
 ```powershell
 peekwin app list
-peekwin app list --all
 peekwin app list --name note
 peekwin app list --json
 ```
 
-`app list` groups titled windows by process name and reports process IDs plus visible-window counts.
+`app list` groups visible titled windows by process name and reports process IDs plus visible-window counts.
 
 ### List screens
 

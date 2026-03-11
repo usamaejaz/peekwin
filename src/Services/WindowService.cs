@@ -33,8 +33,8 @@ public sealed class WindowService
         return windows;
     }
 
-    public IReadOnlyList<AppInfo> ListApps(bool includeHidden = false)
-        => ListWindows(includeHidden)
+    public IReadOnlyList<AppInfo> ListApps()
+        => ListWindows(includeHidden: false)
             .GroupBy(window => window.ProcessName, StringComparer.OrdinalIgnoreCase)
             .Select(group => new AppInfo(
                 group.First().ProcessName,
