@@ -153,11 +153,10 @@ public sealed class InputService
 
     public async Task PressKeyAsync(string key, int repeat, int delayMs)
     {
-        var vk = VirtualKeyParser.Parse(key);
+        var binding = VirtualKeyParser.Parse(key);
         for (var i = 0; i < repeat; i++)
         {
-            KeyDown(vk);
-            KeyUp(vk);
+            PressBinding(binding);
 
             if (i + 1 < repeat && delayMs > 0)
             {
@@ -168,22 +167,22 @@ public sealed class InputService
 
     public void Hotkey(IReadOnlyList<string> keys)
     {
-        var parsed = keys.Select(VirtualKeyParser.Parse).ToArray();
-        foreach (var key in parsed)
+        var sequence = ExpandKeySequence(keys);
+        foreach (var key in sequence)
         {
             KeyDown(key);
         }
 
-        for (var i = parsed.Length - 1; i >= 0; i--)
+        for (var i = sequence.Count - 1; i >= 0; i--)
         {
-            KeyUp(parsed[i]);
+            KeyUp(sequence[i]);
         }
     }
 
     public async Task HoldKeysAsync(IReadOnlyList<string> keys, int durationMs)
     {
-        var parsed = keys.Select(VirtualKeyParser.Parse).ToArray();
-        foreach (var key in parsed)
+        var sequence = ExpandKeySequence(keys);
+        foreach (var key in sequence)
         {
             KeyDown(key);
         }
@@ -194,9 +193,9 @@ public sealed class InputService
         }
         finally
         {
-            for (var i = parsed.Length - 1; i >= 0; i--)
+            for (var i = sequence.Count - 1; i >= 0; i--)
             {
-                KeyUp(parsed[i]);
+                KeyUp(sequence[i]);
             }
         }
     }
@@ -308,6 +307,49 @@ public sealed class InputService
         {
             throw new InvalidOperationException("Windows rejected the injected input.");
         }
+    }
+
+    private void PressBinding(VirtualKeyBinding binding)
+    {
+        foreach (var modifier in binding.Modifiers)
+        {
+            KeyDown(modifier);
+        }
+
+        try
+        {
+            KeyDown(binding.VirtualKey);
+            KeyUp(binding.VirtualKey);
+        }
+        finally
+        {
+            for (var i = binding.Modifiers.Count - 1; i >= 0; i--)
+            {
+                KeyUp(binding.Modifiers[i]);
+            }
+        }
+    }
+
+    private static IReadOnlyList<ushort> ExpandKeySequence(IReadOnlyList<string> keys)
+    {
+        var sequence = new List<ushort>();
+        foreach (var binding in keys.Select(VirtualKeyParser.Parse))
+        {
+            foreach (var modifier in binding.Modifiers)
+            {
+                if (!sequence.Contains(modifier))
+                {
+                    sequence.Add(modifier);
+                }
+            }
+
+            if (!sequence.Contains(binding.VirtualKey))
+            {
+                sequence.Add(binding.VirtualKey);
+            }
+        }
+
+        return sequence;
     }
 
     private static ClipboardSnapshot CaptureClipboardSnapshot()
@@ -508,6 +550,8 @@ public sealed class InputService
     private sealed record ClipboardSnapshot(bool HadClipboardData, System.Runtime.InteropServices.ComTypes.IDataObject? DataObject);
 }
 
+internal sealed record VirtualKeyBinding(ushort VirtualKey, IReadOnlyList<ushort> Modifiers);
+
 internal static class VirtualKeyParser
 {
     private static readonly Dictionary<string, ushort> NamedKeys = new(StringComparer.OrdinalIgnoreCase)
@@ -607,11 +651,11 @@ internal static class VirtualKeyParser
         ["launchapp2"] = 0xB7
     };
 
-    public static ushort Parse(string value)
+    public static VirtualKeyBinding Parse(string value)
     {
         if (NamedKeys.TryGetValue(value, out var vk))
         {
-            return vk;
+            return new VirtualKeyBinding(vk, Array.Empty<ushort>());
         }
 
         if (value.Length == 1)
@@ -619,7 +663,24 @@ internal static class VirtualKeyParser
             var mapped = NativeMethods.VkKeyScan(value[0]);
             if (mapped != -1)
             {
-                return (ushort)(mapped & 0xFF);
+                var modifiers = new List<ushort>(3);
+                var modifierBits = (mapped >> 8) & 0xFF;
+                if ((modifierBits & 1) != 0)
+                {
+                    modifiers.Add(NamedKeys["shift"]);
+                }
+
+                if ((modifierBits & 2) != 0)
+                {
+                    modifiers.Add(NamedKeys["ctrl"]);
+                }
+
+                if ((modifierBits & 4) != 0)
+                {
+                    modifiers.Add(NamedKeys["alt"]);
+                }
+
+                return new VirtualKeyBinding((ushort)(mapped & 0xFF), modifiers);
             }
         }
 

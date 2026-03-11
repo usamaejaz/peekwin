@@ -113,6 +113,47 @@ public sealed class CommandShell
         return string.IsNullOrWhiteSpace(assemblyVersion) ? "unknown" : assemblyVersion;
     }
 
+    public static void PrintRequestedHelp(IReadOnlyList<string> args)
+    {
+        if (args.Count == 0)
+        {
+            PrintHelp();
+            return;
+        }
+
+        var first = args[0].ToLowerInvariant();
+        switch (first)
+        {
+            case "help":
+            case "--help":
+            case "-h":
+                PrintHelp();
+                return;
+            case "window":
+                PrintWindowHelp();
+                return;
+            case "app":
+                PrintAppHelp();
+                return;
+            case "desktop":
+                PrintDesktopHelp();
+                return;
+            case "mouse":
+                PrintMouseHelp();
+                return;
+            case "hold":
+                PrintHoldHelp();
+                return;
+            case "image":
+            case "screenshot":
+                PrintImageHelp();
+                return;
+            default:
+                PrintHelp();
+                return;
+        }
+    }
+
     private Task<int> HandleWindowAsync(string[] args)
     {
         if (IsHelpRequest(args))
