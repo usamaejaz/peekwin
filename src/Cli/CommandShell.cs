@@ -1528,6 +1528,8 @@ public sealed class CommandShell
         Console.WriteLine("  peekwin press [key] [--repeat <n>] [--delay-ms <n>] [window-target] [--json]");
         Console.WriteLine("  peekwin hotkey [keys...] [--keys ctrl,s] [window-target] [--json]");
         Console.WriteLine("  peekwin hold [keys...] [--keys ctrl,shift | --button left|right] [--duration-ms <n>] [target] [--json]");
+        Console.WriteLine();
+        Console.WriteLine("Utility commands:");
         Console.WriteLine("  peekwin sleep <milliseconds> [--json]");
         Console.WriteLine();
         Console.WriteLine("Target flags:");
