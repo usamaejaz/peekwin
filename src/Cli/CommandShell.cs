@@ -424,11 +424,6 @@ public sealed class CommandShell
         }
 
         EnsureNoPositionals(command, options);
-        if (options.HasFlag("all"))
-        {
-            return Fail(command, "app list no longer supports --all. It always shows visible UI apps only.", options.HasFlag("json"));
-        }
-
         var apps = _windowService.ListApps();
         var nameFilter = options.GetValueOrDefault("name");
         if (!string.IsNullOrWhiteSpace(nameFilter))
