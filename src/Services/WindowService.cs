@@ -73,6 +73,17 @@ public sealed class WindowService
             .ThenBy(window => window.Handle, StringComparer.OrdinalIgnoreCase)
             .FirstOrDefault();
 
+
+    public WindowInfo? FindCapturableWindowByTitle(string title)
+        => RankWindowMatchesForCapture(ListWindows()
+            .Where(window => window.Title.Contains(title, StringComparison.OrdinalIgnoreCase)))
+            .FirstOrDefault();
+
+    public WindowInfo? FindCapturableWindowByApp(string appName)
+        => RankWindowMatchesForCapture(ListWindows()
+            .Where(window => window.ProcessName.Contains(appName, StringComparison.OrdinalIgnoreCase)))
+            .FirstOrDefault();
+
     public CommandResult FocusWindow(nint hwnd)
     {
         if (hwnd == 0 || !NativeMethods.IsWindow(hwnd))
@@ -278,6 +289,14 @@ public sealed class WindowService
 
     private static RectDto ToRectDto(NativeMethods.RECT rect)
         => new(rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top);
+
+    private static IOrderedEnumerable<WindowInfo> RankWindowMatchesForCapture(IEnumerable<WindowInfo> windows)
+        => windows
+            .OrderByDescending(window => window.IsVisible && !window.IsMinimized)
+            .ThenByDescending(window => window.IsVisible)
+            .ThenBy(window => window.IsMinimized)
+            .ThenBy(window => window.Title, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(window => window.Handle, StringComparer.OrdinalIgnoreCase);
 
     private static bool TryGetExtendedFrameBounds(nint hwnd, out NativeMethods.RECT rect)
     {
