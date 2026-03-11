@@ -35,6 +35,7 @@ internal static class NativeMethods
     internal const int SM_CYVIRTUALSCREEN = 79;
     internal const uint MONITORINFOF_PRIMARY = 0x00000001;
     internal const uint DWMWA_EXTENDED_FRAME_BOUNDS = 9;
+    internal const uint DWMWA_CLOAKED = 14;
 
     internal static readonly nint DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = -4;
 
@@ -59,6 +60,9 @@ internal static class NativeMethods
 
     [DllImport("dwmapi.dll")]
     internal static extern int DwmGetWindowAttribute(nint hwnd, uint dwAttribute, out RECT pvAttribute, int cbAttribute);
+
+    [DllImport("dwmapi.dll")]
+    internal static extern int DwmGetWindowAttribute(nint hwnd, uint dwAttribute, out uint pvAttribute, int cbAttribute);
 
     [DllImport("user32.dll")]
     internal static extern bool IsWindow(nint hWnd);
