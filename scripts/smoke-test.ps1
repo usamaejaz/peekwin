@@ -149,7 +149,7 @@ try {
             Invoke-PeekwinCommand -Name "focus notepad" -Args @("run", "--project", $ProjectPath, "--", "window", "focus", "--title", "Notepad") | Out-Null
             Invoke-PeekwinCommand -Name "inspect notepad by title" -Args @("run", "--project", $ProjectPath, "--", "window", "inspect", "--title", "Notepad", "--json") -ExpectedOutput '"processName"' | Out-Null
             $seeJson = Invoke-PeekwinCommand -Name "see notepad json" -Args @("run", "--project", $ProjectPath, "--", "see", "--title", "Notepad", "--json") -ExpectedOutput '"snapshot"'
-            Invoke-PeekwinCommand -Name "type positional -v" -Args @("run", "--project", $ProjectPath, "--", "type", "-v", "--delay-ms", "1") | Out-Null
+            Invoke-PeekwinCommand -Name "type positional text" -Args @("run", "--project", $ProjectPath, "--", "type", "v", "--delay-ms", "1") | Out-Null
             Invoke-PeekwinCommand -Name "paste positional" -Args @("run", "--project", $ProjectPath, "--", "paste", "hello") | Out-Null
             Invoke-PeekwinCommand -Name "move duration" -Args @("run", "--project", $ProjectPath, "--", "move", "--x", "100", "--y", "100", "--duration-ms", "25") | Out-Null
             Invoke-PeekwinCommand -Name "double click" -Args @("run", "--project", $ProjectPath, "--", "click", "--x", "100", "--y", "100", "--double") | Out-Null
