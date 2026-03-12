@@ -50,7 +50,7 @@ Implemented command surface:
 - Stable, script-friendly JSON output
 - Simple CLI first, MCP later
 - Clean separation between CLI parsing and Windows services
-- Honest support for virtual desktops without pretending Windows gives more than it does
+- Practical virtual desktop support within Windows API limits
 
 ## Build
 
@@ -84,7 +84,7 @@ Run the lightweight Windows smoke test:
 
 GitHub release publishing is automated for pushed version tags that match `v*`.
 
-`Directory.Build.props` is the source of truth for the release version. `peekwin version`, assembly/file metadata, the README release line, and release tags are expected to agree.
+`Directory.Build.props` is the source of truth for the release version. `peekwin version`, assembly/file metadata, and release tags are expected to agree.
 
 Tag format:
 
@@ -94,8 +94,8 @@ Tag format:
 Push a tag like this to trigger the release workflow:
 
 ```bash
-git tag v0.2.1
-git push origin v0.2.1
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
 Produced release assets:
@@ -145,9 +145,9 @@ Screen indexes are zero-based and match `peekwin screens` output. For pointer co
 
 peekwin now enables per-monitor DPI awareness at startup so cursor movement and capture bounds line up more reliably on mixed-scale multi-monitor setups.
 
-`peekwin image` requires exactly one target and captures only that monitor, window, or live UI element bounds resolved from `--ref`. Window-relative targeting also accepts `--app` when a process-name match is more convenient. Minimized windows are rejected instead of silently capturing the desktop area behind them. `peekwin screenshot` remains as an alias.
+`peekwin image` requires exactly one target and captures only that monitor, window, or live UI element bounds resolved from `--ref`. Window-relative targeting also accepts `--app` when a process-name match is more convenient. Minimized windows are rejected instead of capturing the desktop area behind them. `peekwin screenshot` remains as an alias.
 
-`peekwin wait` adds polling-based synchronization for windows, saved UI refs, and text matching. The defaults are `--timeout-ms 5000` and `--interval-ms 100`. `wait window` supports `exists`, `visible`, `focused`, `gone`, `minimized`, `maximized`, and `restored`. `wait ref` supports `exists`, `visible`, `focused`, `gone`, `enabled`, and `disabled`. `wait text` polls either a window title or a saved ref name until it contains the requested text. Ref waits stay strict: each poll revalidates the saved snapshot session, source window identity, and saved UI element identity before treating the ref as live.
+`peekwin wait` adds polling-based synchronization for windows, saved UI refs, and text matching. The defaults are `--timeout-ms 5000` and `--interval-ms 100`. `wait window` supports `exists`, `visible`, `focused`, `gone`, `minimized`, `maximized`, and `restored`. `wait ref` supports `exists`, `visible`, `focused`, `gone`, `enabled`, and `disabled`. `wait text` polls either a window title or a saved ref name until it contains the requested text. Each ref wait poll revalidates the saved snapshot session, source window identity, and saved UI element identity before treating the ref as live.
 
 ## Usage
 
@@ -183,7 +183,7 @@ Example window fields:
 - `desktopLabel`
 - `bounds`
 
-`desktopLabel` is best-effort and reports whether a window appears to be on the current virtual desktop, another virtual desktop, or unknown.
+`desktopLabel` reports whether a window appears to be on the current virtual desktop, another virtual desktop, or unknown.
 
 ### Window management
 
@@ -222,9 +222,9 @@ peekwin see --name Save --json
 peekwin see --all --json
 ```
 
-`see` inspects the UI Automation tree for a target window. Without a target it uses the current foreground window. By default it returns the root plus one child level in a compact mode that hides off-screen and 0x0 nodes, suppresses duplicate/passive duplicate noise, and keeps full element names plus full control type names like `ControlType.Pane`. Use `--all` or `--raw` to inspect the full saved tree. `--deep` expands farther and `--max-depth` gives explicit control. `--role` filters by normalized control type such as `button`, `edit`, or `pane`.
+`see` inspects the UI Automation tree for a target window. Without a target it uses the current foreground window. By default it returns the root plus one child level in a compact mode that hides off-screen and 0x0 nodes, suppresses duplicate passive nodes, and keeps full element names plus full control type names like `ControlType.Pane`. Use `--all` or `--raw` to inspect the full saved tree. `--deep` expands farther and `--max-depth` gives explicit control. `--role` filters by normalized control type such as `button`, `edit`, or `pane`.
 
-After `peekwin see`, PeekWin writes an immutable snapshot payload plus an atomic current-pointer file under local app data so later commands can target elements by `--ref`. Pointer, image, and keyboard/text commands accept `--ref <id>` and resolve it against the latest saved snapshot in the current Windows session only. Refs are strict: if the source window is gone, the saved handle now points at a different window identity, the session changed, or the saved element path no longer resolves to the same element, PeekWin fails hard and asks you to run `peekwin see` again.
+After `peekwin see`, PeekWin writes an immutable snapshot payload plus an atomic current-pointer file under local app data so later commands can target elements by `--ref`. Pointer, image, and keyboard/text commands accept `--ref <id>` and resolve it against the latest saved snapshot in the current Windows session only. Refs are strict: if the source window is gone, the saved handle now points at a different window identity, the session changed, or the saved element path no longer resolves to the same element, PeekWin returns an error and asks you to run `peekwin see` again.
 
 ### Wait for a window or UI ref
 
@@ -264,7 +264,7 @@ peekwin desktop switch 1
 peekwin desktop switch --index 2 --delay-ms 150
 ```
 
-Desktop switching uses the standard Windows virtual-desktop shortcuts and then re-checks the current desktop index. Desktop IDs are best-effort values read from Windows state; if Windows exposes only one desktop, list/current report that single desktop.
+Desktop switching uses the standard Windows virtual-desktop shortcuts and then re-checks the current desktop index. If Windows exposes only one desktop, list/current report that single desktop.
 
 ### Move and click
 
