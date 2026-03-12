@@ -2,7 +2,7 @@
 
 peekwin is a Windows-native CLI for window control, input automation, screen inspection, and targeted image capture.
 
-Current release: `0.2.0`
+Current release: `0.2.1`
 
 ## Current scope
 
@@ -88,8 +88,8 @@ Tag format:
 Push a tag like this to trigger the release workflow:
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.2.1
+git push origin v0.2.1
 ```
 
 Produced release assets:
