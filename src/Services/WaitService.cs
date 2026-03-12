@@ -16,7 +16,7 @@ public sealed class WaitService
 
     public async Task<WaitOutcome> WaitForWindowAsync(WindowWaitRequest request, CancellationToken cancellationToken = default)
     {
-        var targetLabel = BuildWindowTargetLabel(request);
+        var targetLabel = BuildWindowTargetLabel(request.Handle, request.Title, request.App);
         var stopwatch = Stopwatch.StartNew();
         var pollCount = 0;
         WindowProbeResult? lastProbe = null;
@@ -76,9 +76,42 @@ public sealed class WaitService
         }
     }
 
+    public async Task<TextWaitOutcome> WaitForTextAsync(TextWaitRequest request, CancellationToken cancellationToken = default)
+    {
+        var targetLabel = string.IsNullOrWhiteSpace(request.Ref)
+            ? BuildWindowTargetLabel(request.Handle, request.Title, request.App)
+            : $"UI ref {request.Ref}";
+        var stopwatch = Stopwatch.StartNew();
+        var pollCount = 0;
+        TextProbeResult? lastProbe = null;
+
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            pollCount++;
+            lastProbe = ProbeText(request);
+
+            if (lastProbe.IsSatisfied)
+            {
+                return CreateTextOutcome(request, targetLabel, timedOut: false, stopwatch.ElapsedMilliseconds, pollCount, lastProbe);
+            }
+
+            if (stopwatch.ElapsedMilliseconds >= request.TimeoutMs)
+            {
+                return CreateTextOutcome(request, targetLabel, timedOut: true, stopwatch.ElapsedMilliseconds, pollCount, lastProbe);
+            }
+
+            var delayMs = Math.Min(request.IntervalMs, Math.Max(0, request.TimeoutMs - (int)stopwatch.ElapsedMilliseconds));
+            if (delayMs > 0)
+            {
+                await Task.Delay(delayMs, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
     private WindowProbeResult ProbeWindow(WindowWaitRequest request)
     {
-        var window = ResolveWindow(request);
+        var window = ResolveWindow(request.Handle, request.Title, request.App);
         if (window is null)
         {
             return request.State == WindowWaitState.Gone
@@ -135,14 +168,61 @@ public sealed class WaitService
             : new RefProbeResult(false, null, staleReason ?? "element is not available");
     }
 
-    private WindowInfo? ResolveWindow(WindowWaitRequest request)
+    private TextProbeResult ProbeText(TextWaitRequest request)
     {
-        if (request.Handle != 0)
+        if (!string.IsNullOrWhiteSpace(request.Ref))
         {
-            return _windowService.FindWindow(request.Handle);
+            if (!_automationRefService.TryResolveLiveRef(request.Ref, out var liveRef, out var staleReason))
+            {
+                return new TextProbeResult(false, null, request.Ref, null, null, null, staleReason ?? "element is not available");
+            }
+
+            var actualText = liveRef.Name ?? string.Empty;
+            var isSatisfied = actualText.Contains(request.ContainsText, StringComparison.OrdinalIgnoreCase);
+            var diagnostic = isSatisfied
+                ? $"ref {liveRef.Ref} name matched '{request.ContainsText}'"
+                : $"ref {liveRef.Ref} name is '{actualText}'";
+
+            return new TextProbeResult(
+                isSatisfied,
+                $"0x{liveRef.WindowHandle.ToInt64():X}",
+                liveRef.Ref,
+                liveRef.AppName,
+                liveRef.Bounds,
+                actualText,
+                diagnostic);
         }
 
-        return _windowService.FindWindowMatch(request.Title, request.App);
+        var window = ResolveWindow(request.Handle, request.Title, request.App);
+        if (window is null)
+        {
+            return new TextProbeResult(false, null, null, null, null, null, "no matching window");
+        }
+
+        var actualWindowText = window.Title ?? string.Empty;
+        var windowMatched = actualWindowText.Contains(request.ContainsText, StringComparison.OrdinalIgnoreCase);
+        var windowDiagnostic = windowMatched
+            ? $"window {window.Handle} title matched '{request.ContainsText}'"
+            : $"window {window.Handle} title is '{actualWindowText}'";
+
+        return new TextProbeResult(
+            windowMatched,
+            window.Handle,
+            null,
+            window.ProcessName,
+            window.Bounds,
+            actualWindowText,
+            windowDiagnostic);
+    }
+
+    private WindowInfo? ResolveWindow(nint handle, string? title, string? app)
+    {
+        if (handle != 0)
+        {
+            return _windowService.FindWindow(handle);
+        }
+
+        return _windowService.FindWindowMatch(title, app);
     }
 
     private static WaitOutcome CreateWindowOutcome(WindowWaitRequest request, string targetLabel, bool timedOut, long elapsedMs, int pollCount, WindowProbeResult probe)
@@ -176,24 +256,41 @@ public sealed class WaitService
             Bounds: probe.LiveRef?.Bounds,
             Diagnostic: probe.Diagnostic);
 
-    private static string BuildWindowTargetLabel(WindowWaitRequest request)
+    private static TextWaitOutcome CreateTextOutcome(TextWaitRequest request, string targetLabel, bool timedOut, long elapsedMs, int pollCount, TextProbeResult probe)
+        => new(
+            string.IsNullOrWhiteSpace(request.Ref) ? "window" : "ref",
+            targetLabel,
+            request.ContainsText,
+            timedOut,
+            request.TimeoutMs,
+            request.IntervalMs,
+            ToElapsedMilliseconds(elapsedMs),
+            pollCount,
+            Handle: probe.Handle,
+            Ref: probe.Ref,
+            AppName: probe.AppName,
+            Bounds: probe.Bounds,
+            ActualText: probe.ActualText,
+            Diagnostic: probe.Diagnostic);
+
+    private static string BuildWindowTargetLabel(nint handle, string? title, string? app)
     {
-        if (request.Handle != 0)
+        if (handle != 0)
         {
-            return $"window 0x{request.Handle.ToInt64():X}";
+            return $"window 0x{handle.ToInt64():X}";
         }
 
-        if (!string.IsNullOrWhiteSpace(request.Title) && !string.IsNullOrWhiteSpace(request.App))
+        if (!string.IsNullOrWhiteSpace(title) && !string.IsNullOrWhiteSpace(app))
         {
-            return $"window title '{request.Title}' in app '{request.App}'";
+            return $"window title '{title}' in app '{app}'";
         }
 
-        if (!string.IsNullOrWhiteSpace(request.Title))
+        if (!string.IsNullOrWhiteSpace(title))
         {
-            return $"window title '{request.Title}'";
+            return $"window title '{title}'";
         }
 
-        return $"window app '{request.App}'";
+        return $"window app '{app}'";
     }
 
     private static string DescribeWindowState(WindowWaitState state, WindowInfo window, bool isVisible, bool isFocused)
@@ -232,4 +329,6 @@ public sealed class WaitService
     private sealed record WindowProbeResult(bool IsSatisfied, WindowInfo? Window, string Diagnostic);
 
     private sealed record RefProbeResult(bool IsSatisfied, LiveAutomationRef? LiveRef, string Diagnostic);
+
+    private sealed record TextProbeResult(bool IsSatisfied, string? Handle, string? Ref, string? AppName, RectDto? Bounds, string? ActualText, string Diagnostic);
 }

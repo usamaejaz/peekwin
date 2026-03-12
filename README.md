@@ -12,6 +12,8 @@ Implemented command surface:
 - `window list`
 - `window focus`
 - `window inspect`
+- `window move`
+- `window resize`
 - `window close`
 - `window minimize`
 - `window maximize`
@@ -29,6 +31,8 @@ Implemented command surface:
 - `scroll`
 - `mouse down`
 - `mouse up`
+- `ref click`
+- `ref focus`
 - `type`
 - `paste`
 - `press`
@@ -36,6 +40,8 @@ Implemented command surface:
 - `keys`
 - `see`
 - `wait`
+- `clipboard get`
+- `clipboard set`
 - `hold`
 - `sleep`
 
@@ -142,7 +148,7 @@ peekwin now enables per-monitor DPI awareness at startup so cursor movement and 
 
 `peekwin image` requires exactly one target and captures only that monitor, window, or live UI element bounds resolved from `--ref`. Window-relative targeting also accepts `--app` when a process-name match is more convenient. Minimized windows are rejected instead of silently capturing the desktop area behind them. `peekwin screenshot` remains as an alias.
 
-`peekwin wait` adds polling-based synchronization for windows and saved UI refs. The defaults are `--timeout-ms 5000` and `--interval-ms 100`. `wait window` supports `exists`, `visible`, `focused`, `gone`, `minimized`, `maximized`, and `restored`. `wait ref` supports `exists`, `visible`, `focused`, `gone`, `enabled`, and `disabled`. Ref waits stay strict: each poll revalidates the saved snapshot session, source window identity, and saved UI element identity before treating the ref as live.
+`peekwin wait` adds polling-based synchronization for windows, saved UI refs, and text matching. The defaults are `--timeout-ms 5000` and `--interval-ms 100`. `wait window` supports `exists`, `visible`, `focused`, `gone`, `minimized`, `maximized`, and `restored`. `wait ref` supports `exists`, `visible`, `focused`, `gone`, `enabled`, and `disabled`. `wait text` polls either a window title or a saved ref name until it contains the requested text. Ref waits stay strict: each poll revalidates the saved snapshot session, source window identity, and saved UI element identity before treating the ref as live.
 
 ## Usage
 
@@ -187,6 +193,8 @@ peekwin window focus --handle 0x001F09A2
 peekwin window inspect --title "Notepad"
 peekwin window minimize --title "Notepad"
 peekwin window focus --app notepad
+peekwin window move --title "Notepad" --x 40 --y 40
+peekwin window resize --title "Notepad" --width 1280 --height 900
 peekwin window maximize --handle 0x001F09A2
 peekwin window restore --title "Notepad"
 peekwin window close --title "Notepad"
@@ -229,9 +237,11 @@ peekwin wait window --handle 0x001F09A2 --state gone --json
 peekwin wait ref --ref e12 --state visible
 peekwin wait ref --ref e12 --state enabled --timeout 3000
 peekwin wait ref --ref e12 --state gone --json
+peekwin wait text --title "Notepad" --contains Draft
+peekwin wait text --ref e12 --contains Save --timeout-ms 3000 --json
 ```
 
-`wait window` uses the same matching rules as the rest of the window-targeted command set. `wait ref` keeps polling the exact saved ref, not a fuzzy replacement. If the saved element becomes stale, `gone` succeeds and the other ref states keep waiting until timeout.
+`wait window` uses the same matching rules as the rest of the window-targeted command set. `wait ref` keeps polling the exact saved ref, not a fuzzy replacement. `wait text` matches against a window title or saved ref name using case-insensitive contains semantics. If the saved element becomes stale, `gone` succeeds and the other ref states keep waiting until timeout.
 
 ### List screens
 
@@ -364,10 +374,25 @@ Element refs from `peekwin see` can be used directly in later commands:
 ```powershell
 peekwin see --app notepad --json
 peekwin click --ref e7
+peekwin ref click --ref e7
+peekwin ref focus --ref e12
 peekwin move --ref e7 --x 5 --y 5
 peekwin type "hello" --ref e12
 peekwin image --ref e5 --output .\save-button.png
 ```
+
+`peekwin ref click` tries UI Automation invoke first and falls back to a center mouse click when invoke is unavailable. `peekwin ref focus` uses the saved ref path to focus the live element directly.
+
+### Clipboard
+
+```powershell
+peekwin clipboard get
+peekwin clipboard get --json
+peekwin clipboard set "hello from peekwin"
+peekwin clipboard set --text "copied value"
+```
+
+`clipboard get` reads Unicode text from the current clipboard. `clipboard set` writes Unicode text directly, which is useful for automation chains and later MCP-style flows.
 
 ### Hold keys or a mouse button
 
@@ -414,6 +439,7 @@ Program.cs
 └── Cli/CommandShell.cs
     ├── Services/WindowService.cs
     ├── Services/InputService.cs
+    ├── Services/ClipboardService.cs
     ├── Services/ScreenshotService.cs
     └── Services/VirtualDesktopService.cs
 

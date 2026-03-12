@@ -8,6 +8,10 @@ internal static class NativeMethods
     internal const int SW_MINIMIZE = 6;
     internal const int SW_MAXIMIZE = 3;
     internal const int SW_RESTORE = 9;
+    internal const uint SWP_NOSIZE = 0x0001;
+    internal const uint SWP_NOMOVE = 0x0002;
+    internal const uint SWP_NOZORDER = 0x0004;
+    internal const uint SWP_NOACTIVATE = 0x0010;
     internal const uint WM_CLOSE = 0x0010;
     internal const int BI_RGB = 0;
     internal const uint DIB_RGB_COLORS = 0;
@@ -87,6 +91,9 @@ internal static class NativeMethods
 
     [DllImport("user32.dll")]
     internal static extern bool BringWindowToTop(nint hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern bool SetWindowPos(nint hWnd, nint hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
 
     [DllImport("user32.dll")]
     internal static extern bool SetCursorPos(int x, int y);

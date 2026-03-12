@@ -153,6 +153,59 @@ public sealed class WindowService
     public CommandResult RestoreWindow(nint hwnd)
         => ApplyWindowAction(hwnd, "restore", static handle => NativeMethods.ShowWindow(handle, NativeMethods.SW_RESTORE));
 
+    public CommandResult MoveWindow(nint hwnd, int x, int y)
+    {
+        if (hwnd == 0 || !NativeMethods.IsWindow(hwnd))
+        {
+            return CommandResult.Error($"Invalid or destroyed window handle: {FormatHandle(hwnd)}.");
+        }
+
+        var inspection = InspectWindow(hwnd);
+        var success = NativeMethods.SetWindowPos(
+            hwnd,
+            nint.Zero,
+            x,
+            y,
+            inspection.Bounds.Width,
+            inspection.Bounds.Height,
+            NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+
+        return success
+            ? CommandResult.Ok(
+                $"Moved window {FormatHandle(hwnd)} to {x},{y}.",
+                details: new { handle = FormatHandle(hwnd), position = new { x, y }, bounds = new RectDto(x, y, inspection.Bounds.Width, inspection.Bounds.Height) })
+            : CommandResult.Error($"Failed to move window {FormatHandle(hwnd)}.");
+    }
+
+    public CommandResult ResizeWindow(nint hwnd, int width, int height)
+    {
+        if (width <= 0 || height <= 0)
+        {
+            return CommandResult.Error("Window size must be greater than 0.");
+        }
+
+        if (hwnd == 0 || !NativeMethods.IsWindow(hwnd))
+        {
+            return CommandResult.Error($"Invalid or destroyed window handle: {FormatHandle(hwnd)}.");
+        }
+
+        var inspection = InspectWindow(hwnd);
+        var success = NativeMethods.SetWindowPos(
+            hwnd,
+            nint.Zero,
+            inspection.Bounds.Left,
+            inspection.Bounds.Top,
+            width,
+            height,
+            NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+
+        return success
+            ? CommandResult.Ok(
+                $"Resized window {FormatHandle(hwnd)} to {width}x{height}.",
+                details: new { handle = FormatHandle(hwnd), size = new { width, height }, bounds = new RectDto(inspection.Bounds.Left, inspection.Bounds.Top, width, height) })
+            : CommandResult.Error($"Failed to resize window {FormatHandle(hwnd)}.");
+    }
+
     public CommandResult? TryGetCaptureBounds(nint hwnd, out RectDto bounds)
     {
         bounds = default!;
