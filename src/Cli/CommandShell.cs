@@ -542,6 +542,11 @@ public sealed class CommandShell
         EnsureNoPositionals(command, options);
         var target = ParseTarget(command, options, allowScreen: true, allowWindow: true, allowRef: true);
         var resolvedTarget = ResolveBoundsTarget(command, target);
+        if (!PreparePointerTarget(command, options, target, ref resolvedTarget))
+        {
+            return 1;
+        }
+
         var point = ResolvePoint(command, options, resolvedTarget, requirePointIfNoTarget: false, defaultToCenterWhenTargeted: true, defaultToCursorWhenUnspecified: true);
         var button = ParseMouseButton(options.GetValueOrDefault("button") ?? "left");
         var isDouble = options.HasFlag("double");
@@ -574,7 +579,12 @@ public sealed class CommandShell
         EnsureNoPositionals(command, options);
         var target = ParseTarget(command, options, allowScreen: true, allowWindow: true, allowRef: true);
         var resolvedTarget = ResolveBoundsTarget(command, target);
-        var point = ResolvePoint(command, options, resolvedTarget, requirePointIfNoTarget: true, defaultToCenterWhenTargeted: false);
+        if (!PreparePointerTarget(command, options, target, ref resolvedTarget))
+        {
+            return 1;
+        }
+
+        var point = ResolvePoint(command, options, resolvedTarget, requirePointIfNoTarget: true, defaultToCenterWhenTargeted: true);
         var durationMs = ReadNonNegativeInt(options, "duration-ms") ?? 0;
         var steps = ReadPositiveInt(options, "steps") ?? 12;
 
@@ -605,6 +615,11 @@ public sealed class CommandShell
         EnsureNoPositionals(command, options);
         var target = ParseTarget(command, options, allowScreen: true, allowWindow: true, allowRef: true);
         var resolvedTarget = ResolveBoundsTarget(command, target);
+        if (!PreparePointerTarget(command, options, target, ref resolvedTarget))
+        {
+            return 1;
+        }
+
         var start = ResolvePoint(command, options, resolvedTarget, requirePointIfNoTarget: false, defaultToCenterWhenTargeted: true, defaultToCursorWhenUnspecified: true);
         var end = ResolvePoint(command, options, resolvedTarget, "to-x", "to-y", requirePointIfNoTarget: true, defaultToCenterWhenTargeted: false);
         var button = ParseMouseButton(options.GetValueOrDefault("button") ?? "left");
@@ -655,6 +670,11 @@ public sealed class CommandShell
 
         var target = ParseTarget(command, options, allowScreen: true, allowWindow: true, allowRef: true);
         var resolvedTarget = ResolveBoundsTarget(command, target);
+        if (!PreparePointerTarget(command, options, target, ref resolvedTarget))
+        {
+            return 1;
+        }
+
         var point = ResolvePoint(
             command,
             options,
@@ -714,6 +734,11 @@ public sealed class CommandShell
         var button = ParseMouseButton(options.GetValueOrDefault("button") ?? "left");
         var target = ParseTarget(command, options, allowScreen: true, allowWindow: true, allowRef: true);
         var resolvedTarget = ResolveBoundsTarget(command, target);
+        if (!PreparePointerTarget(command, options, target, ref resolvedTarget))
+        {
+            return 1;
+        }
+
         var point = TryResolvePoint(command, options, resolvedTarget, defaultToCenterWhenTargeted: true);
 
         if (isDown)
@@ -1016,6 +1041,11 @@ public sealed class CommandShell
         {
             var target = ParseTarget(command, options, allowScreen: true, allowWindow: true, allowRef: true);
             var pointerTarget = ResolveBoundsTarget(command, target);
+            if (!PreparePointerTarget(command, options, target, ref pointerTarget))
+            {
+                return 1;
+            }
+
             var point = TryResolvePoint(command, options, pointerTarget, defaultToCenterWhenTargeted: true);
             var button = ParseMouseButton(buttonText!);
             await _inputService.HoldMouseAsync(button, durationMs, point?.X, point?.Y);
@@ -1354,6 +1384,22 @@ public sealed class CommandShell
     {
         var resolved = ResolveWindowTarget(command, target);
         return FocusResolvedTargetIfNeeded(command, resolved, asJson);
+    }
+
+    private bool PreparePointerTarget(string command, OptionSet options, TargetSelector target, ref ResolvedTarget? resolvedTarget)
+    {
+        if (!options.HasFlag("focus") || resolvedTarget?.WindowHandle is null)
+        {
+            return true;
+        }
+
+        if (!FocusResolvedTargetIfNeeded(command, resolvedTarget, options.HasFlag("json")))
+        {
+            return false;
+        }
+
+        resolvedTarget = ResolveBoundsTarget(command, target);
+        return true;
     }
 
     private (int X, int Y)? TryResolvePoint(string command, OptionSet options, ResolvedTarget? target, bool defaultToCenterWhenTargeted)
@@ -2030,11 +2076,11 @@ public sealed class CommandShell
         Console.WriteLine("  peekwin screenshot ...   alias for 'peekwin image'");
         Console.WriteLine();
         Console.WriteLine("Pointer commands:");
-        Console.WriteLine("  peekwin move --x <n> --y <n> [target] [--duration-ms <n>] [--steps <n>] [--json]");
-        Console.WriteLine("  peekwin click [--x <n> --y <n>] [target] [--button left|right] [--double] [--delay-ms <n>] [--json]");
-        Console.WriteLine("  peekwin drag [--x <n> --y <n>] --to-x <n> --to-y <n> [target] [--button left|right] [--duration-ms <n>] [--steps <n>] [--json]");
-        Console.WriteLine("  peekwin scroll [--delta <n>] [--delta-x <n>] [--x <n> --y <n>] [target] [--json]");
-        Console.WriteLine("  peekwin mouse down|up [--button left|right] [--x <n> --y <n>] [target] [--json]");
+        Console.WriteLine("  peekwin move [--x <n> --y <n>] [target] [--focus] [--duration-ms <n>] [--steps <n>] [--json]");
+        Console.WriteLine("  peekwin click [--x <n> --y <n>] [target] [--focus] [--button left|right] [--double] [--delay-ms <n>] [--json]");
+        Console.WriteLine("  peekwin drag [--x <n> --y <n>] --to-x <n> --to-y <n> [target] [--focus] [--button left|right] [--duration-ms <n>] [--steps <n>] [--json]");
+        Console.WriteLine("  peekwin scroll [--delta <n>] [--delta-x <n>] [--x <n> --y <n>] [target] [--focus] [--json]");
+        Console.WriteLine("  peekwin mouse down|up [--button left|right] [--x <n> --y <n>] [target] [--focus] [--json]");
         Console.WriteLine();
         Console.WriteLine("Keyboard/text commands:");
         Console.WriteLine("  peekwin type [text] [--delay-ms <n>] [--method type|paste] [window-target | --ref <id>] [--json]");
@@ -2042,7 +2088,7 @@ public sealed class CommandShell
         Console.WriteLine("  peekwin press [key] [--repeat <n>] [--delay-ms <n>] [window-target | --ref <id>] [--json]");
         Console.WriteLine("  peekwin hotkey [keys...] [--keys ctrl,s] [window-target | --ref <id>] [--json]        single chord, e.g. ctrl s");
         Console.WriteLine("  peekwin keys [steps...] [--steps <value>] [--delay-ms <n>] [window-target | --ref <id>] [--json]   sequence of taps/holds");
-        Console.WriteLine("  peekwin hold [keys...] [--keys ctrl,shift | --button left|right] [--duration-ms <n>] [target] [--json]");
+        Console.WriteLine("  peekwin hold [keys...] [--keys ctrl,shift | --button left|right] [--duration-ms <n>] [target] [--focus] [--json]");
         Console.WriteLine();
         Console.WriteLine("Utility commands:");
         Console.WriteLine("  peekwin sleep <milliseconds> [--json]");
@@ -2110,41 +2156,43 @@ public sealed class CommandShell
     private static void PrintMouseHelp()
     {
         Console.WriteLine("Mouse commands:");
-        Console.WriteLine("  peekwin move --x <n> --y <n> [target] [--duration-ms <n>] [--steps <n>] [--json]");
-        Console.WriteLine("  peekwin click [--x <n> --y <n>] [target] [--button left|right] [--double] [--delay-ms <n>] [--json]");
-        Console.WriteLine("  peekwin drag [--x <n> --y <n>] --to-x <n> --to-y <n> [target] [--button left|right] [--duration-ms <n>] [--steps <n>] [--json]");
-        Console.WriteLine("  peekwin scroll [--delta <n>] [--delta-x <n>] [--x <n> --y <n>] [target] [--json]");
-        Console.WriteLine("  peekwin mouse down [--button left|right] [--x <n> --y <n>] [target] [--json]");
-        Console.WriteLine("  peekwin mouse up [--button left|right] [--x <n> --y <n>] [target] [--json]");
+        Console.WriteLine("  peekwin move [--x <n> --y <n>] [target] [--focus] [--duration-ms <n>] [--steps <n>] [--json]");
+        Console.WriteLine("  peekwin click [--x <n> --y <n>] [target] [--focus] [--button left|right] [--double] [--delay-ms <n>] [--json]");
+        Console.WriteLine("  peekwin drag [--x <n> --y <n>] --to-x <n> --to-y <n> [target] [--focus] [--button left|right] [--duration-ms <n>] [--steps <n>] [--json]");
+        Console.WriteLine("  peekwin scroll [--delta <n>] [--delta-x <n>] [--x <n> --y <n>] [target] [--focus] [--json]");
+        Console.WriteLine("  peekwin mouse down [--button left|right] [--x <n> --y <n>] [target] [--focus] [--json]");
+        Console.WriteLine("  peekwin mouse up [--button left|right] [--x <n> --y <n>] [target] [--focus] [--json]");
         Console.WriteLine("  target = --screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>");
+        Console.WriteLine("  pointer targets default to center when coordinates are omitted; --focus brings window/ref targets to the foreground first");
         Console.WriteLine("  screen indexes are zero-based and match `peekwin screens` output");
     }
 
     private static void PrintMoveHelp()
     {
         Console.WriteLine("Move command:");
-        Console.WriteLine("  peekwin move --x <n> --y <n> [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--duration-ms <n>] [--steps <n>] [--json]");
+        Console.WriteLine("  peekwin move [--x <n> --y <n>] [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--focus] [--duration-ms <n>] [--steps <n>] [--json]");
+        Console.WriteLine("  if a target is provided without coordinates, move uses the target center");
         Console.WriteLine("  screen indexes are zero-based");
     }
 
     private static void PrintClickHelp()
     {
         Console.WriteLine("Click command:");
-        Console.WriteLine("  peekwin click [--x <n> --y <n>] [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--button left|right] [--double] [--delay-ms <n>] [--json]");
+        Console.WriteLine("  peekwin click [--x <n> --y <n>] [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--focus] [--button left|right] [--double] [--delay-ms <n>] [--json]");
         Console.WriteLine("  if --double is set, --delay-ms is applied between the two clicks");
     }
 
     private static void PrintDragHelp()
     {
         Console.WriteLine("Drag command:");
-        Console.WriteLine("  peekwin drag [--x <n> --y <n>] --to-x <n> --to-y <n> [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--button left|right] [--duration-ms <n>] [--steps <n>] [--json]");
+        Console.WriteLine("  peekwin drag [--x <n> --y <n>] --to-x <n> --to-y <n> [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--focus] [--button left|right] [--duration-ms <n>] [--steps <n>] [--json]");
         Console.WriteLine("  screen indexes are zero-based");
     }
 
     private static void PrintScrollHelp()
     {
         Console.WriteLine("Scroll command:");
-        Console.WriteLine("  peekwin scroll [--delta <n>] [--delta-x <n>] [--x <n> --y <n>] [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--json]");
+        Console.WriteLine("  peekwin scroll [--delta <n>] [--delta-x <n>] [--x <n> --y <n>] [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--focus] [--json]");
     }
 
     private static void PrintSeeHelp()
@@ -2199,7 +2247,7 @@ public sealed class CommandShell
         Console.WriteLine("Hold commands:");
         Console.WriteLine("  peekwin hold ctrl shift [--duration-ms <n>] [--app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--json]");
         Console.WriteLine("  peekwin hold --keys ctrl,shift [--duration-ms <n>] [--app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--json]");
-        Console.WriteLine("  peekwin hold --button left|right [--duration-ms <n>] [--x <n> --y <n>] [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--json]");
+        Console.WriteLine("  peekwin hold --button left|right [--duration-ms <n>] [--x <n> --y <n>] [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--focus] [--json]");
     }
 
     private static void PrintImageHelp()
