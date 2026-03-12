@@ -1,9 +1,38 @@
 # peekwin
 
-peekwin is a Windows-native CLI for window control, input automation, screen inspection, and targeted image capture.
+peekwin is a Windows-native CLI for window control, input automation, screen inspection, targeted image capture, and practical synchronization primitives.
 
+## Install
 
-## Current scope
+Download the latest Windows executable from GitHub Releases:
+
+- `peekwin-<tag>-win-x64.exe` for most Windows PCs
+- `peekwin-<tag>-win-arm64.exe` for Windows on ARM
+
+Rename it to `peekwin.exe` if you want, then run it directly from PowerShell or Command Prompt:
+
+```powershell
+.\peekwin.exe --help
+.\peekwin.exe version
+```
+
+If you want it available from anywhere, add the folder containing `peekwin.exe` to your `PATH`.
+
+You can also build from source with the .NET 8 SDK.
+
+## Quick examples
+
+```powershell
+peekwin window list
+peekwin app list
+peekwin screens
+peekwin click --x 400 --y 300
+peekwin type --text "hello"
+peekwin image --screen 0 --path .\shot.png
+peekwin wait window --app notepad --state focused
+```
+
+## What it does
 
 Implemented command surface:
 
@@ -86,11 +115,6 @@ GitHub release publishing is automated for pushed version tags that match `v*`.
 
 `Directory.Build.props` is the source of truth for the release version. `peekwin version`, assembly/file metadata, and release tags are expected to agree.
 
-Tag format:
-
-- `v1.0.0`
-- `v1.2.3`
-
 Create and push a release with the helper script:
 
 ```powershell
@@ -102,8 +126,8 @@ This updates `Directory.Build.props`, creates a version-bump commit, creates tag
 You can still push a tag manually if needed:
 
 ```bash
-git tag v0.3.0
-git push origin v0.3.0
+git tag v0.3.1
+git push origin v0.3.1
 ```
 
 Produced release assets:
@@ -158,19 +182,6 @@ peekwin now enables per-monitor DPI awareness at startup so cursor movement and 
 `peekwin wait` adds polling-based synchronization for windows, saved UI refs, and text matching. The defaults are `--timeout-ms 5000` and `--interval-ms 100`. `wait window` supports `exists`, `visible`, `focused`, `gone`, `minimized`, `maximized`, and `restored`. `wait ref` supports `exists`, `visible`, `focused`, `gone`, `enabled`, and `disabled`. `wait text` polls either a window title or a saved ref name until it contains the requested text. Each ref wait poll revalidates the saved snapshot session, source window identity, and saved UI element identity before treating the ref as live.
 
 ## Usage
-
-### Help
-
-```powershell
-peekwin --help
-peekwin -h
-peekwin help
-peekwin window --help
-peekwin click --help
-peekwin wait ref --help
-```
-
-Use `peekwin --help`, `peekwin -h`, or `peekwin help` for top-level usage. Most commands and subcommands also support `--help`, including nested forms like `peekwin wait ref --help`.
 
 ### Version
 
