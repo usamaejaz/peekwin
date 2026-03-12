@@ -2,7 +2,6 @@
 
 peekwin is a Windows-native CLI for window control, input automation, screen inspection, and targeted image capture.
 
-Current release: `0.3.0`
 
 ## Current scope
 
