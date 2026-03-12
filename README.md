@@ -97,7 +97,7 @@ Create and push a release with the helper script:
 .\scripts\release.ps1 0.3.1
 ```
 
-This updates `Directory.Build.props`, creates a version-bump commit, creates tag `v0.3.1`, and pushes the branch and tag. Use `-NoPush` to keep the commit and tag local, or `-DryRun` to preview the release steps.
+This updates `Directory.Build.props`, creates a version-bump commit, creates tag `v0.3.1`, and pushes the branch and tag. Use `-NoPush` to keep the commit and tag local, or `-DryRun` to preview the release steps. `-DryRun` also skips the Windows-only guard so you can preview the flow from non-Windows PowerShell.
 
 You can still push a tag manually if needed:
 

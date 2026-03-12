@@ -9,8 +9,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-if (-not $IsWindows) {
-    throw "Release helper must run on Windows."
+if (-not $IsWindows -and -not $DryRun) {
+    throw "Release helper must run on Windows unless -DryRun is used."
 }
 
 if ($Version -notmatch '^\d+\.\d+\.\d+$') {
