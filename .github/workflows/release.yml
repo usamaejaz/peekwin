@@ -125,7 +125,9 @@ jobs:
     name: Publish Chocolatey package
     runs-on: windows-latest
     needs: release
-    if: ${{ secrets.CHOCOLATEY_API_KEY != '' }}
+    env:
+      CHOCOLATEY_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
+    if: ${{ env.CHOCOLATEY_API_KEY != '' }}
 
     steps:
       - name: Check out repository
@@ -171,7 +173,9 @@ jobs:
     name: Submit winget update
     runs-on: windows-latest
     needs: release
-    if: ${{ secrets.WINGET_CREATE_GITHUB_TOKEN != '' }}
+    env:
+      WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_CREATE_GITHUB_TOKEN }}
+    if: ${{ env.WINGET_CREATE_GITHUB_TOKEN != '' }}
 
     steps:
       - name: Check out repository
