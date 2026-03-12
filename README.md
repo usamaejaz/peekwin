@@ -1,9 +1,67 @@
 # peekwin
 
-peekwin is a Windows-native CLI for window control, input automation, screen inspection, and targeted image capture.
+peekwin is a Windows-native CLI for window control, input automation, screen inspection, targeted image capture, and UI wait commands.
 
+## Install
 
-## Current scope
+### Option 1 - Download from GitHub Releases
+
+Download the latest Windows executable from GitHub Releases:
+
+- `peekwin-<tag>-win-x64.exe` for most Windows PCs
+- `peekwin-<tag>-win-arm64.exe` for Windows on ARM
+
+Rename it to `peekwin.exe` if you want, then run it directly from PowerShell or Command Prompt:
+
+```powershell
+.\peekwin.exe --help
+.\peekwin.exe version
+```
+
+If you want it available from anywhere, add the folder containing `peekwin.exe` to your `PATH`.
+
+### Option 2 - Download a specific release file
+
+If you already know the version you want, download the exact release asset file directly:
+
+- `peekwin-v0.3.0-win-x64.exe`
+- `peekwin-v0.3.0-win-arm64.exe`
+
+After downloading, you can rename the file to `peekwin.exe` if you want a shorter command.
+
+### Option 3 - Build from source
+
+Build from source with the .NET 8 SDK:
+
+```powershell
+git clone https://github.com/usamaejaz/peekwin.git
+cd peekwin
+dotnet build -c Release
+```
+
+### Package manager installs
+
+Planned, but not available yet:
+
+```powershell
+winget install usamaejaz.peekwin   # pending
+scoop install peekwin              # pending
+choco install peekwin              # pending
+```
+
+## Quick examples
+
+```powershell
+peekwin window list
+peekwin app list
+peekwin screens
+peekwin click --x 400 --y 300
+peekwin type --text "hello"
+peekwin image --screen 0 --path .\shot.png
+peekwin wait window --app notepad --state focused
+```
+
+## What it does
 
 Implemented command surface:
 
@@ -48,9 +106,9 @@ Implemented command surface:
 
 - Native Windows behavior via `user32.dll`, `gdi32.dll`, COM, and related APIs
 - Stable, script-friendly JSON output
-- Simple CLI first, MCP later
+- Simple, scriptable CLI
 - Clean separation between CLI parsing and Windows services
-- Practical virtual desktop support within Windows API limits
+- Virtual desktop support where Windows exposes it cleanly
 
 ## Build
 
@@ -84,12 +142,7 @@ Run the lightweight Windows smoke test:
 
 GitHub release publishing is automated for pushed version tags that match `v*`.
 
-`Directory.Build.props` is the source of truth for the release version. `peekwin version`, assembly/file metadata, and release tags are expected to agree.
-
-Tag format:
-
-- `v1.0.0`
-- `v1.2.3`
+`Directory.Build.props` defines the release version. `peekwin version`, assembly/file metadata, and release tags should stay in sync.
 
 Create and push a release with the helper script:
 
@@ -102,8 +155,8 @@ This updates `Directory.Build.props`, creates a version-bump commit, creates tag
 You can still push a tag manually if needed:
 
 ```bash
-git tag v0.3.0
-git push origin v0.3.0
+git tag v0.3.1
+git push origin v0.3.1
 ```
 
 Produced release assets:
@@ -155,22 +208,9 @@ peekwin now enables per-monitor DPI awareness at startup so cursor movement and 
 
 `peekwin image` requires exactly one target and captures only that monitor, window, or live UI element bounds resolved from `--ref`. Window-relative targeting also accepts `--app` when a process-name match is more convenient. Minimized windows are rejected instead of capturing the desktop area behind them. `peekwin screenshot` remains as an alias.
 
-`peekwin wait` adds polling-based synchronization for windows, saved UI refs, and text matching. The defaults are `--timeout-ms 5000` and `--interval-ms 100`. `wait window` supports `exists`, `visible`, `focused`, `gone`, `minimized`, `maximized`, and `restored`. `wait ref` supports `exists`, `visible`, `focused`, `gone`, `enabled`, and `disabled`. `wait text` polls either a window title or a saved ref name until it contains the requested text. Each ref wait poll revalidates the saved snapshot session, source window identity, and saved UI element identity before treating the ref as live.
+`peekwin wait` adds polling-based wait commands for windows, saved UI refs, and text matching. The defaults are `--timeout-ms 5000` and `--interval-ms 100`. `wait window` supports `exists`, `visible`, `focused`, `gone`, `minimized`, `maximized`, and `restored`. `wait ref` supports `exists`, `visible`, `focused`, `gone`, `enabled`, and `disabled`. `wait text` polls either a window title or a saved ref name until it contains the requested text. Ref waits stay tied to the exact saved element instead of switching to a fuzzy replacement.
 
 ## Usage
-
-### Help
-
-```powershell
-peekwin --help
-peekwin -h
-peekwin help
-peekwin window --help
-peekwin click --help
-peekwin wait ref --help
-```
-
-Use `peekwin --help`, `peekwin -h`, or `peekwin help` for top-level usage. Most commands and subcommands also support `--help`, including nested forms like `peekwin wait ref --help`.
 
 ### Version
 
@@ -412,7 +452,7 @@ peekwin clipboard set "hello from peekwin"
 peekwin clipboard set --text "copied value"
 ```
 
-`clipboard get` reads Unicode text from the current clipboard. `clipboard set` writes Unicode text directly, which is useful for automation chains and later MCP-style flows.
+`clipboard get` reads Unicode text from the current clipboard. `clipboard set` writes Unicode text directly, which is useful for automation chains and scripts.
 
 ### Hold keys or a mouse button
 
