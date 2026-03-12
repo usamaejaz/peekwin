@@ -1114,6 +1114,15 @@ public sealed class CommandShell
             ?? Path.Combine(Environment.CurrentDirectory, $"peekwin-{DateTime.UtcNow:yyyyMMddHHmmss}.png");
         var target = ParseTarget(command, options, allowScreen: true, allowWindow: true, allowRef: true, requireTarget: true);
         var resolvedTarget = target.Screen is null ? ResolveCaptureWindowTarget(command, target)! : ResolveBoundsTarget(command, target)!;
+        if (target.Screen is null && !PreparePointerTarget(command, options, target, ref resolvedTarget))
+        {
+            return 1;
+        }
+
+        if (resolvedTarget is null)
+        {
+            return Fail(command, $"{command} requires a target.", options.HasFlag("json"));
+        }
 
         CommandResult result;
         if (resolvedTarget.Kind == "window" && resolvedTarget.WindowHandle is not null)
@@ -2072,7 +2081,7 @@ public sealed class CommandShell
         Console.WriteLine("  peekwin desktop list|current [--json]");
         Console.WriteLine("  peekwin desktop switch <index> [--delay-ms <n>] [--json]");
         Console.WriteLine("  peekwin screens [--json]");
-        Console.WriteLine("  peekwin image (--screen <n> | [--app <name>] [--title <text>] | --handle <HWND> | --window <HWND> | --ref <id>) [--output <path>] [--json]");
+        Console.WriteLine("  peekwin image (--screen <n> | [--app <name>] [--title <text>] | --handle <HWND> | --window <HWND> | --ref <id>) [--focus] [--output <path>] [--json]");
         Console.WriteLine("  peekwin screenshot ...   alias for 'peekwin image'");
         Console.WriteLine();
         Console.WriteLine("Pointer commands:");
@@ -2253,9 +2262,10 @@ public sealed class CommandShell
     private static void PrintImageHelp()
     {
         Console.WriteLine("Image commands:");
-        Console.WriteLine("  peekwin image (--screen <n> | [--app <name>] [--title <text>] | --handle <HWND> | --window <HWND> | --ref <id>) [--output <path>] [--json]");
+        Console.WriteLine("  peekwin image (--screen <n> | [--app <name>] [--title <text>] | --handle <HWND> | --window <HWND> | --ref <id>) [--focus] [--output <path>] [--json]");
         Console.WriteLine("  peekwin screenshot ...             alias for 'peekwin image'");
         Console.WriteLine("  peekwin image info [--json]        alias for 'peekwin screens'");
+        Console.WriteLine("  use --focus to bring window/ref targets to the foreground before capture");
         Console.WriteLine("  screen indexes are zero-based; --ref captures the live element bounds");
     }
 
