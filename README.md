@@ -91,7 +91,15 @@ Tag format:
 - `v1.0.0`
 - `v1.2.3`
 
-Push a tag like this to trigger the release workflow:
+Create and push a release with the helper script:
+
+```powershell
+.\scripts\release.ps1 0.3.1
+```
+
+This updates `Directory.Build.props`, creates a version-bump commit, creates tag `v0.3.1`, and pushes the branch and tag. Use `-NoPush` to keep the commit and tag local, or `-DryRun` to preview the release steps.
+
+You can still push a tag manually if needed:
 
 ```bash
 git tag v0.3.0
