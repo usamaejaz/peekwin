@@ -1,7 +1,0 @@
-interface:
-  display_name: "PeekWin"
-  short_description: "Automate native Windows apps with peekwin"
-  default_prompt: "Use $peekwin to inspect a Windows app and automate it with precise CLI steps."
-
-policy:
-  allow_implicit_invocation: true
