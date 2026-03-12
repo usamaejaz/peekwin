@@ -1,75 +1,89 @@
 ---
 name: peekwin
-description: Use this skill when you need to inspect, target, and automate native Windows UI with the `peekwin` CLI. It covers window control, mouse and keyboard input, screenshots, UI inspection with `peekwin see`, and synchronization with `peekwin wait`. Use it for deterministic Windows desktop automation, not for non-Windows hosts or unsupported deep UI reasoning.
+description: Inspect, target, and automate native Windows UI with the `peekwin` CLI.
+metadata: {"openclaw":{"os":["win32"],"requires":{"bins":["peekwin"]}}}
 ---
 
 # PeekWin
 
-## Overview
+Use `peekwin` when you need deterministic Windows desktop automation from the command line: window discovery, focus and state changes, UI inspection, mouse and keyboard input, screenshots, and waiting for exact window or element states.
 
-Use `peekwin` for Windows-native GUI automation from the command line. It works best when the user needs reliable, scriptable actions against desktop apps: find windows, focus them, inspect UI elements, move and click, type, capture images, and wait for exact window or element states.
-
-Assume all of the following before using it:
+This skill assumes:
 - The host running commands is Windows
-- `peekwin` is installed and on `PATH`
-- Structured output is preferred, so use `--json` when another tool or script will consume results
+- `peekwin` is installed and available on `PATH`
+- `--json` should be preferred when another tool will consume the output
+
+## Quick start
+
+1. Find the target window
+   - `peekwin window list --json`
+   - `peekwin app list --json`
+2. Inspect before acting
+   - `peekwin window inspect --title "..."`
+   - `peekwin see --title "..." --json`
+3. Wait for the exact state you need
+   - `peekwin wait window --title "..." --state focused`
+   - `peekwin wait ref --ref e12 --state visible`
+4. Perform the action
+   - `peekwin click ...`
+   - `peekwin type ...`
+   - `peekwin press ...`
+   - `peekwin hotkey ...`
+5. Verify with another inspection or capture
+   - `peekwin image ...`
+   - `peekwin window inspect ...`
+   - `peekwin see ... --json`
 
 ## When to use it
 
 Use this skill for:
 - Desktop app automation on Windows
-- Window discovery, focus, and state management
+- Window discovery, focus, minimize, maximize, restore, and close
 - Mouse input relative to a screen, window, or saved UI ref
-- Screenshot or image capture of a specific monitor, window, or UI element
-- Inspecting controls before automation with `peekwin see`
+- Keyboard and text entry into a specific target window
+- Screenshot or image capture of a monitor, window, or saved UI element
 - Polling for readiness with `peekwin wait` instead of blind sleeps
 
 Do not use this skill for:
 - Non-Windows hosts
-- Browser-only automation when browser-native tools are a better fit
-- OCR-heavy or computer-vision-heavy tasks `peekwin` does not expose
-- Guessing control refs without inspecting first
+- Browser-only tasks when browser-native automation is a better fit
+- OCR-heavy or vision-heavy workflows `peekwin` does not expose
+- Guessing refs or coordinates when the UI can be inspected first
 
-## Core workflow
+## Targeting model
 
-1. Discover the target
-   - Use `peekwin window list --json` for windows
-   - Use `peekwin app list --json` when process name is easier than title matching
-2. Inspect before acting
-   - Use `peekwin window inspect ...` for bounds and state
-   - Use `peekwin see ... --json` when you need element-level targeting
-3. Target precisely
-   - Prefer one of `--ref`, `--handle`, `--title`, or `--app`
-   - Do not stack fuzzy selectors when one exact selector is available
-4. Synchronize
-   - Use `peekwin wait window ...` or `peekwin wait ref ...` before interacting
-5. Act
-   - Use `click`, `type`, `press`, `hotkey`, `move`, `drag`, `scroll`, or window commands
-6. Verify
-   - Capture with `peekwin image` or re-run `peekwin see` or `peekwin window inspect`
+Prefer the most exact selector available:
+- `--ref` after `peekwin see`
+- `--handle` or `--window` when you already know the HWND
+- `--title` when a title match is stable enough
+- `--app` when process-name targeting is more convenient
+- `--screen` for monitor-relative actions
 
-## Rules and gotchas
-
-- Prefer `--json` for machine consumption
-- Window handles are shown as hex like `0x001F09A2`, and `peekwin` accepts either hex or decimal input
-- After `peekwin see`, refs are strict and session-bound. If the window identity changes or the saved element goes stale, rerun `peekwin see`
-- Pointer coordinates are absolute unless a target flag is present. With `--screen`, `--app`, `--title`, `--handle`, `--window`, or `--ref`, coordinates become relative to that target
+Important rules:
+- Pointer coordinates are absolute by default
+- When you add `--screen`, `--app`, `--title`, `--handle`, `--window`, or `--ref`, coordinates become relative to that target
 - `peekwin image` requires exactly one target
-- Minimized windows are not valid image targets. Restore or focus them first
-- Prefer `peekwin wait` over fixed `sleep` whenever a UI state can be observed directly
-- Use `--verbose` only when debugging failures
+- Minimized windows are not valid image targets
+
+## Refs and waiting
+
+After `peekwin see`, refs are strict and session-bound.
+
+That means you should not guess or reuse them loosely. If the source window identity changes, the Windows session changes, or the saved element goes stale, rerun `peekwin see` and get a fresh ref.
+
+Prefer `peekwin wait` over fixed sleeps whenever the UI exposes a real state to poll.
 
 ## Common patterns
 
-### List and focus a window
+### Focus a window and type
 
 ```powershell
-peekwin window list --app notepad --json
 peekwin window focus --app notepad
 peekwin wait window --app notepad --state focused
+peekwin type --app notepad --text "hello from peekwin"
 ```
 
-### Inspect and click a control
+### Inspect and click a saved UI ref
 
 ```powershell
 peekwin see --title "Notepad" --deep --json
@@ -77,21 +91,14 @@ peekwin wait ref --ref e12 --state visible
 peekwin click --ref e12
 ```
 
-### Type into a specific app
-
-```powershell
-peekwin wait window --app notepad --state focused
-peekwin type --app notepad --text "hello from peekwin"
-```
-
-### Capture a target image
+### Capture a specific target
 
 ```powershell
 peekwin image --title "Calculator" --path calc.png
 peekwin image --ref e12 --path button.png
 ```
 
-### Wait instead of sleeping blindly
+### Wait for a dialog instead of sleeping
 
 ```powershell
 peekwin window focus --title "Save As"
@@ -112,7 +119,7 @@ peekwin press --key enter
 ## Working style
 
 When using this skill:
-- State the exact `peekwin` command before running it when the workflow is not trivial
+- Say the exact `peekwin` command before running it when the workflow is non-trivial
 - Prefer short, verifiable steps over long automation chains
-- If targeting is ambiguous, resolve it first with `window list`, `window inspect`, or `see`
-- If a ref becomes stale, say so clearly and rerun `peekwin see` instead of guessing
+- Resolve ambiguity first with `window list`, `window inspect`, or `see`
+- If a ref becomes stale, rerun `peekwin see` instead of guessing
