@@ -60,6 +60,29 @@ function ConvertFrom-PeekwinJson {
     return $Json | ConvertFrom-Json
 }
 
+function Get-UsableChildRef {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$WindowTitle
+    )
+
+    $seeJson = Invoke-PeekwinCommand -Name "see $WindowTitle json" -Args @("run", "--project", $ProjectPath, "--", "see", "--title", $WindowTitle, "--json") -ExpectedOutput '"snapshot"'
+    $seeEnvelope = ConvertFrom-PeekwinJson -Json $seeJson
+    if (-not $seeEnvelope.success -or -not $seeEnvelope.data.snapshot.id) {
+        throw "Expected see JSON to include snapshot metadata."
+    }
+
+    $refTarget = @($seeEnvelope.data.elements | Where-Object { $_.depth -ge 1 -and $_.bounds.width -gt 0 -and $_.bounds.height -gt 0 }) | Select-Object -First 1
+    if (-not $refTarget) {
+        throw "Expected see to return at least one usable child ref."
+    }
+
+    return $refTarget.ref
+}
+
 Push-Location $workspaceRoot
 try {
     $expectedVersion = Get-PeekwinVersion
@@ -148,7 +171,6 @@ try {
             Start-Sleep -Milliseconds 500
             Invoke-PeekwinCommand -Name "focus notepad" -Args @("run", "--project", $ProjectPath, "--", "window", "focus", "--title", "Notepad") | Out-Null
             Invoke-PeekwinCommand -Name "inspect notepad by title" -Args @("run", "--project", $ProjectPath, "--", "window", "inspect", "--title", "Notepad", "--json") -ExpectedOutput '"processName"' | Out-Null
-            $seeJson = Invoke-PeekwinCommand -Name "see notepad json" -Args @("run", "--project", $ProjectPath, "--", "see", "--title", "Notepad", "--json") -ExpectedOutput '"snapshot"'
             Invoke-PeekwinCommand -Name "type positional text" -Args @("run", "--project", $ProjectPath, "--", "type", "v", "--delay-ms", "1") | Out-Null
             Invoke-PeekwinCommand -Name "paste positional" -Args @("run", "--project", $ProjectPath, "--", "paste", "hello") | Out-Null
             Invoke-PeekwinCommand -Name "move duration" -Args @("run", "--project", $ProjectPath, "--", "move", "--x", "100", "--y", "100", "--duration-ms", "25") | Out-Null
@@ -158,18 +180,10 @@ try {
             Invoke-PeekwinCommand -Name "hold mouse" -Args @("run", "--project", $ProjectPath, "--", "hold", "--button", "left", "--duration-ms", "25") | Out-Null
             Invoke-PeekwinCommand -Name "desktop list" -Args @("run", "--project", $ProjectPath, "--", "desktop", "list") | Out-Null
 
-            $seeEnvelope = ConvertFrom-PeekwinJson -Json $seeJson
-            if (-not $seeEnvelope.success -or -not $seeEnvelope.data.snapshot.id) {
-                throw "Expected see JSON to include snapshot metadata."
-            }
-
-            $refTarget = @($seeEnvelope.data.elements | Where-Object { $_.depth -ge 1 -and $_.bounds.width -gt 0 -and $_.bounds.height -gt 0 }) | Select-Object -First 1
-            if (-not $refTarget) {
-                throw "Expected see to return at least one usable child ref."
-            }
-
-            Invoke-PeekwinCommand -Name "click ref json" -Args @("run", "--project", $ProjectPath, "--", "click", "--ref", $refTarget.ref, "--json") -ExpectedOutput '"message"' | Out-Null
-            Invoke-PeekwinCommand -Name "image ref" -Args @("run", "--project", $ProjectPath, "--", "image", "--ref", $refTarget.ref, "--output", $refImageOutput) | Out-Null
+            $clickRef = Get-UsableChildRef -ProjectPath $ProjectPath -WindowTitle "Notepad"
+            Invoke-PeekwinCommand -Name "click ref json" -Args @("run", "--project", $ProjectPath, "--", "click", "--ref", $clickRef, "--json") -ExpectedOutput '"message"' | Out-Null
+            $imageRef = Get-UsableChildRef -ProjectPath $ProjectPath -WindowTitle "Notepad"
+            Invoke-PeekwinCommand -Name "image ref" -Args @("run", "--project", $ProjectPath, "--", "image", "--ref", $imageRef, "--output", $refImageOutput) | Out-Null
             if (-not (Test-Path $refImageOutput)) {
                 throw "Expected ref image output was not created: $refImageOutput"
             }
