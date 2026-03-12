@@ -177,18 +177,16 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Set up .NET SDK for wingetcreate
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 6.0.x
+
       - name: Download wingetcreate
         shell: pwsh
         run: |
-          $headers = @{ 'User-Agent' = 'peekwin-release-workflow' }
-          $release = Invoke-RestMethod -Headers $headers -Uri 'https://api.github.com/repos/microsoft/winget-create/releases/latest'
-          $asset = $release.assets | Where-Object { $_.name -eq 'wingetcreate.exe' } | Select-Object -First 1
-          if (-not $asset) {
-            throw 'Could not find wingetcreate.exe in the latest winget-create release.'
-          }
-
           $targetPath = Join-Path $env:RUNNER_TEMP 'wingetcreate.exe'
-          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $targetPath
+          Invoke-WebRequest -Uri 'https://aka.ms/wingetcreate/latest' -OutFile $targetPath
           & $targetPath --version
 
       - name: Submit winget package update
