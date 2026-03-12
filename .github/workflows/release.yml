@@ -79,14 +79,15 @@ jobs:
 
           Copy-Item -Path $sourceExe -Destination $releaseExe -Force
 
-          $actualVersion = & $releaseExe version
-          if ($LASTEXITCODE -ne 0) {
-            throw "Built executable failed its version check."
+          $versionInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($releaseExe)
+          $actualVersion = $versionInfo.ProductVersion
+          if ([string]::IsNullOrWhiteSpace($actualVersion)) {
+            throw "Built executable is missing ProductVersion metadata."
           }
 
           $actualVersion = $actualVersion.Trim()
           if ($actualVersion -ne $expectedVersion) {
-            throw "Built executable reports version '$actualVersion' but release tag is '$tag'."
+            throw "Built executable metadata reports version '$actualVersion' but release tag is '$tag'."
           }
 
           $checksum = (Get-FileHash -Path $releaseExe -Algorithm SHA256).Hash.ToLowerInvariant()
