@@ -151,6 +151,19 @@ peekwin now enables per-monitor DPI awareness at startup so cursor movement and 
 
 ## Usage
 
+### Help
+
+```powershell
+peekwin --help
+peekwin -h
+peekwin help
+peekwin window --help
+peekwin click --help
+peekwin wait ref --help
+```
+
+Use `peekwin --help`, `peekwin -h`, or `peekwin help` for top-level usage. Most commands and subcommands also support `--help`, including nested forms like `peekwin wait ref --help`.
+
 ### Version
 
 ```powershell
