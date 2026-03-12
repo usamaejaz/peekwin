@@ -8,7 +8,6 @@ metadata: {"openclaw":{"os":["win32"],"requires":{"bins":["peekwin"]}}}
 
 Use `peekwin` when you need deterministic Windows desktop automation from the command line: window discovery, focus and state changes, UI inspection, mouse and keyboard input, screenshots, and waiting for exact window or element states.
 
-These instructions are written to be useful for any coding or automation agent. Tools that understand the frontmatter can use it for routing and environment checks; tools that do not can ignore it and follow the Markdown instructions below.
 
 ## Assumptions
 
