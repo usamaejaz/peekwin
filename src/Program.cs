@@ -34,13 +34,18 @@ return await CreateShell().RunAsync(args);
 
 static CommandShell CreateShell()
 {
+    var windowService = new WindowService();
     var inputService = new InputService();
+    var automationSnapshotService = new AutomationSnapshotService();
+    var automationRefService = new AutomationRefService(automationSnapshotService, windowService);
     return new CommandShell(
-        new WindowService(),
+        windowService,
         inputService,
         new ScreenshotService(),
         new VirtualDesktopService(inputService),
-        new AutomationSnapshotService());
+        automationSnapshotService,
+        automationRefService,
+        new WaitService(windowService, automationRefService));
 }
 
 static bool AllowsNonWindowsExecution(IReadOnlyList<string> args)

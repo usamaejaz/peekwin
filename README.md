@@ -2,7 +2,7 @@
 
 peekwin is a Windows-native CLI for window control, input automation, screen inspection, and targeted image capture.
 
-Current release: `0.2.3`
+Current release: `0.2.4`
 
 ## Current scope
 
@@ -35,6 +35,7 @@ Implemented command surface:
 - `hotkey`
 - `keys`
 - `see`
+- `wait`
 - `hold`
 - `sleep`
 
@@ -141,6 +142,8 @@ peekwin now enables per-monitor DPI awareness at startup so cursor movement and 
 
 `peekwin image` requires exactly one target and captures only that monitor, window, or live UI element bounds resolved from `--ref`. Window-relative targeting also accepts `--app` when a process-name match is more convenient. Minimized windows are rejected instead of silently capturing the desktop area behind them. `peekwin screenshot` remains as an alias.
 
+`peekwin wait` adds polling-based synchronization for windows and saved UI refs. The defaults are `--timeout-ms 5000` and `--interval-ms 100`. `wait window` supports `exists`, `visible`, `focused`, `gone`, `minimized`, `maximized`, and `restored`. `wait ref` supports `exists`, `visible`, `focused`, `gone`, `enabled`, and `disabled`. Ref waits stay strict: each poll revalidates the saved snapshot session, source window identity, and saved UI element identity before treating the ref as live.
+
 ## Usage
 
 ### Version
@@ -215,6 +218,20 @@ peekwin see --all --json
 `see` inspects the UI Automation tree for a target window. Without a target it uses the current foreground window. By default it returns the root plus one child level in a compact mode that hides off-screen and 0x0 nodes, suppresses duplicate/passive duplicate noise, and keeps full element names plus full control type names like `ControlType.Pane`. Use `--all` or `--raw` to inspect the full saved tree. `--deep` expands farther and `--max-depth` gives explicit control. `--role` filters by normalized control type such as `button`, `edit`, or `pane`.
 
 After `peekwin see`, PeekWin writes an immutable snapshot payload plus an atomic current-pointer file under local app data so later commands can target elements by `--ref`. Pointer, image, and keyboard/text commands accept `--ref <id>` and resolve it against the latest saved snapshot in the current Windows session only. Refs are strict: if the source window is gone, the saved handle now points at a different window identity, the session changed, or the saved element path no longer resolves to the same element, PeekWin fails hard and asks you to run `peekwin see` again.
+
+### Wait for a window or UI ref
+
+```powershell
+peekwin wait window --title "Notepad" --state focused
+peekwin wait window --app chrome --state visible --timeout-ms 10000
+peekwin wait window --handle 0x001F09A2 --state gone --json
+
+peekwin wait ref --ref e12 --state visible
+peekwin wait ref --ref e12 --state enabled --timeout 3000
+peekwin wait ref --ref e12 --state gone --json
+```
+
+`wait window` uses the same matching rules as the rest of the window-targeted command set. `wait ref` keeps polling the exact saved ref, not a fuzzy replacement. If the saved element becomes stale, `gone` succeeds and the other ref states keep waiting until timeout.
 
 ### List screens
 
