@@ -16,6 +16,7 @@ public sealed class CommandShell
     private readonly VirtualDesktopService _virtualDesktopService;
     private readonly AutomationSnapshotService _automationSnapshotService;
     private readonly AutomationRefService _automationRefService;
+    private readonly ClipboardService _clipboardService;
     private readonly WaitService _waitService;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -25,10 +26,11 @@ public sealed class CommandShell
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
-    public CommandShell(WindowService windowService, InputService inputService, ScreenshotService screenshotService, VirtualDesktopService virtualDesktopService, AutomationSnapshotService automationSnapshotService, AutomationRefService automationRefService, WaitService waitService)
+    public CommandShell(WindowService windowService, InputService inputService, ClipboardService clipboardService, ScreenshotService screenshotService, VirtualDesktopService virtualDesktopService, AutomationSnapshotService automationSnapshotService, AutomationRefService automationRefService, WaitService waitService)
     {
         _windowService = windowService;
         _inputService = inputService;
+        _clipboardService = clipboardService;
         _screenshotService = screenshotService;
         _virtualDesktopService = virtualDesktopService;
         _automationSnapshotService = automationSnapshotService;
@@ -62,6 +64,7 @@ public sealed class CommandShell
                 "drag" => await HandleDragAsync(args[1..]),
                 "scroll" => HandleScroll(args[1..]),
                 "mouse" => HandleMouse(args[1..]),
+                "ref" => await HandleRefAsync(args[1..]),
                 "type" => await HandleTypeAsync(args[1..]),
                 "paste" => await HandlePasteAsync(args[1..]),
                 "press" => await HandlePressAsync(args[1..]),
@@ -72,6 +75,7 @@ public sealed class CommandShell
                 "image" => HandleImageCommand(args[1..], "image"),
                 "screenshot" => HandleImageCommand(args[1..], "screenshot"),
                 "wait" => await HandleWaitAsync(args[1..]),
+                "clipboard" => HandleClipboard(args[1..]),
                 "sleep" => await HandleSleepAsync(args[1..]),
                 _ => Fail(BuildCommandName(args), $"Unknown command: {args[0]}", RequestedJson(args))
             };
@@ -172,6 +176,9 @@ public sealed class CommandShell
             case "mouse":
                 PrintMouseHelp();
                 return;
+            case "ref":
+                PrintRefHelp();
+                return;
             case "type":
                 PrintTypeHelp();
                 return;
@@ -198,6 +205,9 @@ public sealed class CommandShell
                         case "ref":
                             PrintWaitRefHelp();
                             return;
+                        case "text":
+                            PrintWaitTextHelp();
+                            return;
                     }
                 }
 
@@ -208,6 +218,9 @@ public sealed class CommandShell
                 return;
             case "see":
                 PrintSeeHelp();
+                return;
+            case "clipboard":
+                PrintClipboardHelp();
                 return;
             case "sleep":
                 PrintSleepHelp();
@@ -243,6 +256,8 @@ public sealed class CommandShell
             "list" => HandleWindowList(args[1..]),
             "focus" => HandleWindowAction(args[1..], "window focus", _windowService.FocusWindow),
             "inspect" => HandleWindowInspect(args[1..]),
+            "move" => HandleWindowMove(args[1..]),
+            "resize" => HandleWindowResize(args[1..]),
             "close" => HandleWindowAction(args[1..], "window close", _windowService.CloseWindow),
             "minimize" => HandleWindowAction(args[1..], "window minimize", _windowService.MinimizeWindow),
             "maximize" => HandleWindowAction(args[1..], "window maximize", _windowService.MaximizeWindow),
@@ -351,6 +366,54 @@ public sealed class CommandShell
         return 0;
     }
 
+    private int HandleWindowMove(string[] args)
+    {
+        const string command = "window move";
+        if (IsHelpRequest(args))
+        {
+            Console.WriteLine("Usage: peekwin window move ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) --x <n> --y <n> [--json]");
+            return 0;
+        }
+
+        if (!TryParseOptions(command, args, out var options))
+        {
+            return 1;
+        }
+
+        EnsureNoPositionals(command, options);
+        var x = ReadInt(options, "x") ?? throw new InvalidOperationException("window move requires --x.");
+        var y = ReadInt(options, "y") ?? throw new InvalidOperationException("window move requires --y.");
+        var target = ParseTarget(command, options, allowScreen: false, allowWindow: true, requireTarget: true);
+        var resolvedTarget = ResolveWindowTarget(command, target)!;
+        var result = _windowService.MoveWindow(resolvedTarget.WindowHandle!.Value, x, y);
+        WriteResult(command, result, options.HasFlag("json"));
+        return result.Success ? 0 : 1;
+    }
+
+    private int HandleWindowResize(string[] args)
+    {
+        const string command = "window resize";
+        if (IsHelpRequest(args))
+        {
+            Console.WriteLine("Usage: peekwin window resize ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) --width <n> --height <n> [--json]");
+            return 0;
+        }
+
+        if (!TryParseOptions(command, args, out var options))
+        {
+            return 1;
+        }
+
+        EnsureNoPositionals(command, options);
+        var width = ReadPositiveInt(options, "width") ?? throw new InvalidOperationException("window resize requires --width.");
+        var height = ReadPositiveInt(options, "height") ?? throw new InvalidOperationException("window resize requires --height.");
+        var target = ParseTarget(command, options, allowScreen: false, allowWindow: true, requireTarget: true);
+        var resolvedTarget = ResolveWindowTarget(command, target)!;
+        var result = _windowService.ResizeWindow(resolvedTarget.WindowHandle!.Value, width, height);
+        WriteResult(command, result, options.HasFlag("json"));
+        return result.Success ? 0 : 1;
+    }
+
     private int HandleApp(string[] args)
     {
         if (IsHelpRequest(args))
@@ -369,6 +432,177 @@ public sealed class CommandShell
             "list" => HandleAppList(args[1..]),
             _ => Fail("app", $"Unknown app subcommand: {args[0]}", RequestedJson(args))
         };
+    }
+
+    private Task<int> HandleRefAsync(string[] args)
+    {
+        if (IsHelpRequest(args))
+        {
+            PrintRefHelp();
+            return Task.FromResult(0);
+        }
+
+        if (args.Length == 0)
+        {
+            return Task.FromResult(Fail("ref", "Missing ref subcommand.", false));
+        }
+
+        return args[0].ToLowerInvariant() switch
+        {
+            "click" => HandleRefClickAsync(args[1..]),
+            "focus" => Task.FromResult(HandleRefFocus(args[1..])),
+            _ => Task.FromResult(Fail("ref", $"Unknown ref subcommand: {args[0]}", RequestedJson(args)))
+        };
+    }
+
+    private async Task<int> HandleRefClickAsync(string[] args)
+    {
+        const string command = "ref click";
+        if (IsHelpRequest(args))
+        {
+            Console.WriteLine("Usage: peekwin ref click --ref <id> [--json]");
+            return 0;
+        }
+
+        if (!TryParseOptions(command, args, out var options))
+        {
+            return 1;
+        }
+
+        EnsureNoPositionals(command, options);
+        var target = ParseTarget(command, options, allowScreen: false, allowWindow: false, allowRef: true, requireTarget: true);
+        var resolvedTarget = ResolveRefTarget(target.Ref!);
+
+        string? invokeError = null;
+        var usedInvoke = !string.IsNullOrWhiteSpace(resolvedTarget.Path)
+            && UiAutomationHelper.TryInvokeElementByPath(resolvedTarget.WindowHandle!.Value, resolvedTarget.Path!, out var invoked, out invokeError)
+            && invoked;
+
+        if (usedInvoke)
+        {
+            WriteResult(
+                command,
+                CommandResult.Ok(
+                    $"Activated UI ref {resolvedTarget.Ref} using UI Automation invoke.",
+                    details: new { mechanism = "invoke", target = ToTargetData(resolvedTarget) }),
+                options.HasFlag("json"));
+            return 0;
+        }
+
+        var point = (resolvedTarget.Bounds.Left + resolvedTarget.Bounds.Width / 2, resolvedTarget.Bounds.Top + resolvedTarget.Bounds.Height / 2);
+        await _inputService.ClickAsync(point.Item1, point.Item2, MouseButton.Left, isDouble: false, delayMs: 0).ConfigureAwait(false);
+        WriteResult(
+            command,
+            CommandResult.Ok(
+                $"Clicked UI ref {resolvedTarget.Ref} via mouse fallback at {FormatPointForMessage(resolvedTarget, point.Item1, point.Item2)}.",
+                details: new
+                {
+                    mechanism = "mouse",
+                    point = ToPointData(point.Item1, point.Item2),
+                    relativePoint = ToRelativePointData(resolvedTarget, point.Item1, point.Item2),
+                    target = ToTargetData(resolvedTarget),
+                    invokeError
+                }),
+            options.HasFlag("json"));
+        return 0;
+    }
+
+    private int HandleRefFocus(string[] args)
+    {
+        const string command = "ref focus";
+        if (IsHelpRequest(args))
+        {
+            Console.WriteLine("Usage: peekwin ref focus --ref <id> [--json]");
+            return 0;
+        }
+
+        if (!TryParseOptions(command, args, out var options))
+        {
+            return 1;
+        }
+
+        EnsureNoPositionals(command, options);
+        var target = ParseTarget(command, options, allowScreen: false, allowWindow: false, allowRef: true, requireTarget: true);
+        var resolvedTarget = ResolveRefTarget(target.Ref!);
+        if (!FocusResolvedTargetIfNeeded(command, resolvedTarget, options.HasFlag("json")))
+        {
+            return 1;
+        }
+
+        WriteResult(
+            command,
+            CommandResult.Ok($"Focused UI ref {resolvedTarget.Ref}.", details: new { target = ToTargetData(resolvedTarget) }),
+            options.HasFlag("json"));
+        return 0;
+    }
+
+    private int HandleClipboard(string[] args)
+    {
+        if (IsHelpRequest(args))
+        {
+            PrintClipboardHelp();
+            return 0;
+        }
+
+        if (args.Length == 0)
+        {
+            return Fail("clipboard", "Missing clipboard subcommand.", false);
+        }
+
+        return args[0].ToLowerInvariant() switch
+        {
+            "get" => HandleClipboardGet(args[1..]),
+            "set" => HandleClipboardSet(args[1..]),
+            _ => Fail("clipboard", $"Unknown clipboard subcommand: {args[0]}", RequestedJson(args))
+        };
+    }
+
+    private int HandleClipboardGet(string[] args)
+    {
+        const string command = "clipboard get";
+        if (IsHelpRequest(args))
+        {
+            Console.WriteLine("Usage: peekwin clipboard get [--json]");
+            return 0;
+        }
+
+        if (!TryParseOptions(command, args, out var options))
+        {
+            return 1;
+        }
+
+        EnsureNoPositionals(command, options);
+        var text = _clipboardService.GetText();
+        if (options.HasFlag("json"))
+        {
+            WriteJsonEnvelope(true, command, new { text, length = text.Length });
+        }
+        else
+        {
+            Console.WriteLine(text);
+        }
+
+        return 0;
+    }
+
+    private int HandleClipboardSet(string[] args)
+    {
+        const string command = "clipboard set";
+        if (IsHelpRequest(args))
+        {
+            Console.WriteLine("Usage: peekwin clipboard set [text] [--text <value>] [--json]");
+            return 0;
+        }
+
+        if (!TryParseOptions(command, args, out var options))
+        {
+            return 1;
+        }
+
+        var text = ResolveText(command, options);
+        var result = _clipboardService.SetText(text);
+        WriteResult(command, result, options.HasFlag("json"));
+        return result.Success ? 0 : 1;
     }
 
     private Task<int> HandleDesktopAsync(string[] args)
@@ -1200,6 +1434,7 @@ public sealed class CommandShell
         {
             "window" => await HandleWaitWindowAsync(args[1..]).ConfigureAwait(false),
             "ref" => await HandleWaitRefAsync(args[1..]).ConfigureAwait(false),
+            "text" => await HandleWaitTextAsync(args[1..]).ConfigureAwait(false),
             _ => Fail("wait", $"Unknown wait subcommand: {args[0]}", RequestedJson(args))
         };
     }
@@ -1262,6 +1497,37 @@ public sealed class CommandShell
 
         var outcome = await _waitService.WaitForRefAsync(request).ConfigureAwait(false);
         WriteWaitOutcome(command, outcome, options.HasFlag("json"));
+        return outcome.TimedOut ? 1 : 0;
+    }
+
+    private async Task<int> HandleWaitTextAsync(string[] args)
+    {
+        const string command = "wait text";
+        if (IsHelpRequest(args))
+        {
+            PrintWaitTextHelp();
+            return 0;
+        }
+
+        if (!TryParseOptions(command, args, out var options))
+        {
+            return 1;
+        }
+
+        EnsureNoPositionals(command, options);
+        var target = ParseTarget(command, options, allowScreen: false, allowWindow: true, allowRef: true, requireTarget: true);
+        var containsText = ResolveWaitContainsText(options);
+        var request = new TextWaitRequest(
+            target.Handle,
+            target.Title,
+            target.App,
+            target.Ref,
+            containsText,
+            ReadWaitTimeout(options),
+            ReadWaitInterval(options));
+
+        var outcome = await _waitService.WaitForTextAsync(request).ConfigureAwait(false);
+        WriteTextWaitOutcome(command, outcome, options.HasFlag("json"));
         return outcome.TimedOut ? 1 : 0;
     }
 
@@ -2109,6 +2375,17 @@ public sealed class CommandShell
         };
     }
 
+    private static string ResolveWaitContainsText(OptionSet options)
+    {
+        var value = GetAliasedValue(options, "contains", "text");
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new InvalidOperationException("wait text requires --contains.");
+        }
+
+        return value;
+    }
+
     private static void WriteWaitOutcome(string command, WaitOutcome outcome, bool asJson)
     {
         var result = outcome.TimedOut
@@ -2118,6 +2395,19 @@ public sealed class CommandShell
             : CommandResult.Ok(
                 $"{CapitalizeLeading(outcome.TargetLabel)} became {outcome.State} after {outcome.ElapsedMs}ms.",
                 details: ToWaitData(outcome));
+
+        WriteResult(command, result, asJson);
+    }
+
+    private static void WriteTextWaitOutcome(string command, TextWaitOutcome outcome, bool asJson)
+    {
+        var result = outcome.TimedOut
+            ? CommandResult.Error(
+                $"Timed out after {outcome.ElapsedMs}ms waiting for {outcome.TargetLabel} to contain '{outcome.ContainsText}'.",
+                ToTextWaitData(outcome))
+            : CommandResult.Ok(
+                $"{CapitalizeLeading(outcome.TargetLabel)} contained '{outcome.ContainsText}' after {outcome.ElapsedMs}ms.",
+                details: ToTextWaitData(outcome));
 
         WriteResult(command, result, asJson);
     }
@@ -2219,6 +2509,28 @@ public sealed class CommandShell
             diagnostic = outcome.Diagnostic
         };
 
+    private static object ToTextWaitData(TextWaitOutcome outcome)
+        => new
+        {
+            target = new
+            {
+                kind = outcome.TargetKind,
+                label = outcome.TargetLabel,
+                handle = outcome.Handle,
+                @ref = outcome.Ref,
+                app = outcome.AppName,
+                bounds = outcome.Bounds
+            },
+            contains = outcome.ContainsText,
+            actualText = outcome.ActualText,
+            timedOut = outcome.TimedOut,
+            elapsedMs = outcome.ElapsedMs,
+            timeoutMs = outcome.TimeoutMs,
+            intervalMs = outcome.IntervalMs,
+            pollCount = outcome.PollCount,
+            diagnostic = outcome.Diagnostic
+        };
+
     private static void EnsureNoPositionals(string command, OptionSet options)
     {
         if (options.Positionals.Count > 0)
@@ -2243,7 +2555,7 @@ public sealed class CommandShell
         }
 
         var first = args[0].ToLowerInvariant();
-        if ((first is "window" or "app" or "mouse" or "desktop" or "image" or "screenshot" or "wait") && args.Count > 1 && !args[1].StartsWith("--", StringComparison.Ordinal))
+        if ((first is "window" or "app" or "mouse" or "desktop" or "image" or "screenshot" or "wait" or "ref" or "clipboard") && args.Count > 1 && !args[1].StartsWith("--", StringComparison.Ordinal))
         {
             return $"{first} {args[1].ToLowerInvariant()}";
         }
@@ -2260,11 +2572,12 @@ public sealed class CommandShell
         Console.WriteLine();
         Console.WriteLine("Core commands:");
         Console.WriteLine("  peekwin window list [--all] [--app <name>] [--title <text>] [--json]");
-        Console.WriteLine("  peekwin window focus|inspect|close|minimize|maximize|restore ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) [--json]");
+        Console.WriteLine("  peekwin window focus|inspect|move|resize|close|minimize|maximize|restore ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) [--json]");
         Console.WriteLine("  peekwin app list [--name <text>] [--json]");
         Console.WriteLine("  peekwin see [[--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>] [--deep | --max-depth <n>] [--role <name>] [--name <text>] [--all|--raw] [--json]");
         Console.WriteLine("  peekwin wait window ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) --state <name> [--timeout-ms <n>] [--interval-ms <n>] [--json]");
         Console.WriteLine("  peekwin wait ref --ref <id> --state <name> [--timeout-ms <n>] [--interval-ms <n>] [--json]");
+        Console.WriteLine("  peekwin wait text ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND> | --ref <id>) --contains <text> [--timeout-ms <n>] [--interval-ms <n>] [--json]");
         Console.WriteLine("  peekwin desktop list|current [--json]");
         Console.WriteLine("  peekwin desktop switch <index> [--delay-ms <n>] [--json]");
         Console.WriteLine("  peekwin screens [--json]");
@@ -2277,6 +2590,7 @@ public sealed class CommandShell
         Console.WriteLine("  peekwin drag [--x <n> --y <n>] --to-x <n> --to-y <n> [target] [--focus] [--button left|right] [--duration-ms <n>] [--steps <n>] [--json]");
         Console.WriteLine("  peekwin scroll [--delta <n>] [--delta-x <n>] [--x <n> --y <n>] [target] [--focus] [--json]");
         Console.WriteLine("  peekwin mouse down|up [--button left|right] [--x <n> --y <n>] [target] [--focus] [--json]");
+        Console.WriteLine("  peekwin ref click|focus --ref <id> [--json]");
         Console.WriteLine();
         Console.WriteLine("Keyboard/text commands:");
         Console.WriteLine("  peekwin type [text] [--delay-ms <n>] [--method type|paste] [window-target | --ref <id>] [--json]");
@@ -2285,6 +2599,7 @@ public sealed class CommandShell
         Console.WriteLine("  peekwin hotkey [keys...] [--keys ctrl,s] [window-target | --ref <id>] [--json]        single chord, e.g. ctrl s");
         Console.WriteLine("  peekwin keys [steps...] [--steps <value>] [--delay-ms <n>] [window-target | --ref <id>] [--json]   sequence of taps/holds");
         Console.WriteLine("  peekwin hold [keys...] [--keys ctrl,shift | --button left|right] [--duration-ms <n>] [target] [--focus] [--json]");
+        Console.WriteLine("  peekwin clipboard get|set [text] [--text <value>] [--json]");
         Console.WriteLine();
         Console.WriteLine("Utility commands:");
         Console.WriteLine("  peekwin sleep <milliseconds> [--json]");
@@ -2312,6 +2627,8 @@ public sealed class CommandShell
         Console.WriteLine("  peekwin window list [--all] [--app <name>] [--title <text>] [--json]");
         Console.WriteLine("  peekwin window focus ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) [--json]");
         Console.WriteLine("  peekwin window inspect ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) [--json]");
+        Console.WriteLine("  peekwin window move ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) --x <n> --y <n> [--json]");
+        Console.WriteLine("  peekwin window resize ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) --width <n> --height <n> [--json]");
         Console.WriteLine("  peekwin window close ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) [--json]");
         Console.WriteLine("  peekwin window minimize ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) [--json]");
         Console.WriteLine("  peekwin window maximize ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) [--json]");
@@ -2446,11 +2763,27 @@ public sealed class CommandShell
         Console.WriteLine("  peekwin hold --button left|right [--duration-ms <n>] [--x <n> --y <n>] [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--focus] [--json]");
     }
 
+    private static void PrintRefHelp()
+    {
+        Console.WriteLine("Ref commands:");
+        Console.WriteLine("  peekwin ref click --ref <id> [--json]");
+        Console.WriteLine("  peekwin ref focus --ref <id> [--json]");
+        Console.WriteLine("  `peekwin ref click` tries UI Automation invoke first, then falls back to a center mouse click if needed");
+    }
+
+    private static void PrintClipboardHelp()
+    {
+        Console.WriteLine("Clipboard commands:");
+        Console.WriteLine("  peekwin clipboard get [--json]");
+        Console.WriteLine("  peekwin clipboard set [text] [--text <value>] [--json]");
+    }
+
     private static void PrintWaitHelp()
     {
         Console.WriteLine("Wait commands:");
         Console.WriteLine("  peekwin wait window ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) --state exists|visible|focused|gone|minimized|maximized|restored [--timeout-ms <n>|--timeout <n>] [--interval-ms <n>|--interval <n>] [--json]");
         Console.WriteLine("  peekwin wait ref --ref <id> --state exists|visible|focused|gone|enabled|disabled [--timeout-ms <n>|--timeout <n>] [--interval-ms <n>|--interval <n>] [--json]");
+        Console.WriteLine("  peekwin wait text ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND> | --ref <id>) --contains <text> [--timeout-ms <n>|--timeout <n>] [--interval-ms <n>|--interval <n>] [--json]");
         Console.WriteLine("  default timeout is 5000ms; default interval is 100ms");
     }
 
@@ -2470,6 +2803,14 @@ public sealed class CommandShell
         Console.WriteLine("  refs stay strict: PeekWin keeps revalidating the saved window identity and saved UI element identity on each poll");
         Console.WriteLine("  examples: peekwin wait ref --ref e12 --state visible");
         Console.WriteLine("            peekwin wait ref --ref e12 --state gone --timeout-ms 3000 --json");
+    }
+
+    private static void PrintWaitTextHelp()
+    {
+        Console.WriteLine("Wait for window title or ref name text:");
+        Console.WriteLine("  peekwin wait text ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND> | --ref <id>) --contains <text> [--timeout-ms <n>|--timeout <n>] [--interval-ms <n>|--interval <n>] [--json]");
+        Console.WriteLine("  examples: peekwin wait text --title \"Notepad\" --contains Draft");
+        Console.WriteLine("            peekwin wait text --ref e12 --contains Save --timeout-ms 3000 --json");
     }
 
     private static void PrintImageHelp()

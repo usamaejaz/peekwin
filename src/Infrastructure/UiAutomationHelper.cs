@@ -8,6 +8,7 @@ namespace PeekWin.Infrastructure;
 internal static class UiAutomationHelper
 {
     private static readonly Guid CUIAutomationClsid = new("FF48DBA4-60EF-4201-AA87-54103EEF594E");
+    private const int UIA_InvokePatternId = 10000;
 
     public static IReadOnlyList<AutomationElementInfo> GetTopLevelChildren(nint hwnd)
         => GetTree(hwnd, maxDepth: 1).Nodes
@@ -57,6 +58,49 @@ internal static class UiAutomationHelper
             },
             out _,
             out error);
+
+
+    public static bool TryInvokeElementByPath(nint hwnd, string path, out bool invoked, out string? error)
+    {
+        if (TryWithElementByPath(
+            hwnd,
+            path,
+            static element =>
+            {
+                object? patternObject = null;
+                try
+                {
+                    if (element.GetCurrentPattern(UIA_InvokePatternId, out patternObject) != 0 || patternObject is null)
+                    {
+                        return false;
+                    }
+
+                    if (patternObject is not IUIAutomationInvokePattern invokePattern)
+                    {
+                        throw new UiAutomationException("UI Automation returned an unexpected invoke pattern object.");
+                    }
+
+                    if (invokePattern.Invoke() != 0)
+                    {
+                        throw new UiAutomationException("UI Automation could not invoke the target element.");
+                    }
+
+                    return true;
+                }
+                finally
+                {
+                    ReleaseComObject(patternObject);
+                }
+            },
+            out invoked,
+            out error))
+        {
+            return true;
+        }
+
+        invoked = false;
+        return false;
+    }
 
     public static bool TryGetBoundsByPath(nint hwnd, string path, out RectDto bounds)
         => TryGetBoundsByPath(hwnd, path, out bounds, out _);
@@ -506,7 +550,7 @@ internal static class UiAutomationHelper
                         throw new UiAutomationException("Failed to create the UI Automation traversal condition.");
                     }
 
-                    return new UiAutomationSession(automationObject, automation, root, condition);
+                    return new UiAutomationSession(automationObject, automation, root, condition!);
                 }
                 catch
                 {
@@ -618,6 +662,16 @@ internal static class UiAutomationHelper
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface IUIAutomationCondition
     {
+    }
+
+
+    [ComImport]
+    [Guid("FB377FBE-8EA6-46D5-9C73-6499642D3059")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IUIAutomationInvokePattern
+    {
+        [PreserveSig]
+        int Invoke();
     }
 
     [ComImport]
