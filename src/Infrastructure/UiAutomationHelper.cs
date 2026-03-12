@@ -386,6 +386,25 @@ internal static class UiAutomationHelper
             _ => $"ControlType.{controlType}"
         };
 
+    private static bool TryCreateControlViewCondition(IUIAutomation automation, out IUIAutomationCondition? condition)
+    {
+        condition = null;
+        if (automation.get_ControlViewCondition(out var conditionHandle) != 0 || conditionHandle == 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            condition = (IUIAutomationCondition)Marshal.GetObjectForIUnknown(conditionHandle);
+            return true;
+        }
+        finally
+        {
+            Marshal.Release(conditionHandle);
+        }
+    }
+
     private static void ReleaseComObject(object? value)
     {
         if (value is not null && Marshal.IsComObject(value))
@@ -449,7 +468,7 @@ internal static class UiAutomationHelper
 
                 try
                 {
-                    if (automation.CreateTrueCondition(out var condition) != 0 || condition is null)
+                    if (!TryCreateControlViewCondition(automation, out var condition))
                     {
                         throw new UiAutomationException("Failed to create the UI Automation traversal condition.");
                     }
