@@ -8,7 +8,10 @@ metadata: {"openclaw":{"os":["win32"],"requires":{"bins":["peekwin"]}}}
 
 Use `peekwin` when you need deterministic Windows desktop automation from the command line: window discovery, focus and state changes, UI inspection, mouse and keyboard input, screenshots, and waiting for exact window or element states.
 
-This skill assumes:
+These instructions are written to be useful for any coding or automation agent. Tools that understand the frontmatter can use it for routing and environment checks; tools that do not can ignore it and follow the Markdown instructions below.
+
+## Assumptions
+
 - The host running commands is Windows
 - `peekwin` is installed and available on `PATH`
 - `--json` should be preferred when another tool will consume the output
@@ -36,7 +39,7 @@ This skill assumes:
 
 ## When to use it
 
-Use this skill for:
+Use these instructions for:
 - Desktop app automation on Windows
 - Window discovery, focus, minimize, maximize, restore, and close
 - Mouse input relative to a screen, window, or saved UI ref
@@ -44,7 +47,7 @@ Use this skill for:
 - Screenshot or image capture of a monitor, window, or saved UI element
 - Polling for readiness with `peekwin wait` instead of blind sleeps
 
-Do not use this skill for:
+Do not use them for:
 - Non-Windows hosts
 - Browser-only tasks when browser-native automation is a better fit
 - OCR-heavy or vision-heavy workflows `peekwin` does not expose
@@ -69,7 +72,7 @@ Important rules:
 
 After `peekwin see`, refs are strict and session-bound.
 
-That means you should not guess or reuse them loosely. If the source window identity changes, the Windows session changes, or the saved element goes stale, rerun `peekwin see` and get a fresh ref.
+Do not guess or reuse them loosely. If the source window identity changes, the Windows session changes, or the saved element goes stale, rerun `peekwin see` and get a fresh ref.
 
 Prefer `peekwin wait` over fixed sleeps whenever the UI exposes a real state to poll.
 
@@ -118,7 +121,6 @@ peekwin press --key enter
 
 ## Working style
 
-When using this skill:
 - Say the exact `peekwin` command before running it when the workflow is non-trivial
 - Prefer short, verifiable steps over long automation chains
 - Resolve ambiguity first with `window list`, `window inspect`, or `see`
