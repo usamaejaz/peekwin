@@ -4,6 +4,8 @@ peekwin is a Windows-native CLI for window control, input automation, screen ins
 
 ## Install
 
+### Option 1 - Download from GitHub Releases
+
 Download the latest Windows executable from GitHub Releases:
 
 - `peekwin-<tag>-win-x64.exe` for most Windows PCs
@@ -18,7 +20,34 @@ Rename it to `peekwin.exe` if you want, then run it directly from PowerShell or 
 
 If you want it available from anywhere, add the folder containing `peekwin.exe` to your `PATH`.
 
-You can also build from source with the .NET 8 SDK.
+### Option 2 - Download a specific release file
+
+If you already know the version you want, download the exact release asset file directly:
+
+- `peekwin-v0.3.0-win-x64.exe`
+- `peekwin-v0.3.0-win-arm64.exe`
+
+After downloading, you can rename the file to `peekwin.exe` if you want a shorter command.
+
+### Option 3 - Build from source
+
+Build from source with the .NET 8 SDK:
+
+```powershell
+git clone https://github.com/usamaejaz/peekwin.git
+cd peekwin
+dotnet build -c Release
+```
+
+### Package manager installs
+
+Planned, but not available yet:
+
+```powershell
+winget install usamaejaz.peekwin   # pending
+scoop install peekwin              # pending
+choco install peekwin              # pending
+```
 
 ## Quick examples
 
