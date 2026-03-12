@@ -26,8 +26,17 @@ if ($ExpectedTag -and $ExpectedTag -ne "v$version") {
 }
 
 $readme = Get-Content -Path $readmePath -Raw
-if ($readme -notmatch [regex]::Escape("Current release: ``$version``")) {
-    throw "README current release line does not match version $version."
+$releaseLinePattern = 'Current release:\s*`([^`]+)`'
+$releaseLineMatches = [regex]::Matches($readme, $releaseLinePattern)
+if ($releaseLineMatches.Count -gt 1) {
+    throw "README contains multiple current release lines. Keep at most one."
+}
+
+if ($releaseLineMatches.Count -eq 1) {
+    $readmeVersion = $releaseLineMatches[0].Groups[1].Value
+    if ($readmeVersion -ne $version) {
+        throw "README current release line does not match version $version."
+    }
 }
 
 Push-Location $workspaceRoot

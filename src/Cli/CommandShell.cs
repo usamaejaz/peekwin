@@ -272,7 +272,7 @@ public sealed class CommandShell
     {
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin window list [--all] [--app <name>] [--title <text>] [--json]");
+            PrintUsage("peekwin window list [--all] [--app <name>] [--title <text>] [--json]");
             return 0;
         }
 
@@ -309,7 +309,7 @@ public sealed class CommandShell
     {
         if (IsHelpRequest(args))
         {
-            Console.WriteLine($"Usage: peekwin {command} ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) [--json]");
+            PrintUsage($"peekwin {command} ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) [--json]");
             return 0;
         }
 
@@ -332,7 +332,7 @@ public sealed class CommandShell
         const string command = "window inspect";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin window inspect ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) [--json]");
+            PrintUsage("peekwin window inspect ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) [--json]");
             return 0;
         }
 
@@ -371,7 +371,7 @@ public sealed class CommandShell
         const string command = "window move";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin window move ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) --x <n> --y <n> [--json]");
+            PrintUsage("peekwin window move ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) --x <n> --y <n> [--json]");
             return 0;
         }
 
@@ -395,7 +395,7 @@ public sealed class CommandShell
         const string command = "window resize";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin window resize ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) --width <n> --height <n> [--json]");
+            PrintUsage("peekwin window resize ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) --width <n> --height <n> [--json]");
             return 0;
         }
 
@@ -460,7 +460,7 @@ public sealed class CommandShell
         const string command = "ref click";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin ref click --ref <id> [--json]");
+            PrintUsage("peekwin ref click --ref <id> [--json]");
             return 0;
         }
 
@@ -512,7 +512,7 @@ public sealed class CommandShell
         const string command = "ref focus";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin ref focus --ref <id> [--json]");
+            PrintUsage("peekwin ref focus --ref <id> [--json]");
             return 0;
         }
 
@@ -562,7 +562,7 @@ public sealed class CommandShell
         const string command = "clipboard get";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin clipboard get [--json]");
+            PrintUsage("peekwin clipboard get [--json]");
             return 0;
         }
 
@@ -590,7 +590,7 @@ public sealed class CommandShell
         const string command = "clipboard set";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin clipboard set [text] [--text <value>] [--json]");
+            PrintUsage("peekwin clipboard set [text] [--text <value>] [--json]");
             return 0;
         }
 
@@ -634,7 +634,7 @@ public sealed class CommandShell
         const string command = "desktop list";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin desktop list [--json]");
+            PrintUsage("peekwin desktop list [--json]");
             return 0;
         }
 
@@ -665,7 +665,7 @@ public sealed class CommandShell
         const string command = "desktop current";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin desktop current [--json]");
+            PrintUsage("peekwin desktop current [--json]");
             return 0;
         }
 
@@ -692,7 +692,7 @@ public sealed class CommandShell
         const string command = "desktop switch";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin desktop switch <index> [--delay-ms <n>] [--json]");
+            PrintUsage("peekwin desktop switch <index> [--delay-ms <n>] [--json]");
             Console.WriteLine("       peekwin desktop switch --index <n> [--delay-ms <n>] [--json]");
             return 0;
         }
@@ -714,7 +714,7 @@ public sealed class CommandShell
         const string command = "app list";
         if (IsHelpRequest(args))
         {
-            Console.WriteLine("Usage: peekwin app list [--name <text>] [--json]");
+            PrintUsage("peekwin app list [--name <text>] [--json]");
             return 0;
         }
 
@@ -2450,6 +2450,9 @@ public sealed class CommandShell
 
     private static void WriteJsonEnvelope(bool success, string command, object? data, string? error = null)
         => Console.WriteLine(JsonSerializer.Serialize(new JsonEnvelope(success, command, data, error), JsonOptions));
+
+    private static void PrintUsage(string usage)
+        => Console.WriteLine($"Usage: {usage}");
 
     private static object ToPointData(int x, int y)
         => new { x, y };
