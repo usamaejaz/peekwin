@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>peekwin</id>
+    <version>__VERSION__</version>
+    <title>peekwin</title>
+    <authors>Usama Ejaz</authors>
+    <owners>Usama Ejaz</owners>
+    <projectUrl>https://github.com/usamaejaz/peekwin</projectUrl>
+    <packageSourceUrl>https://github.com/usamaejaz/peekwin</packageSourceUrl>
+    <docsUrl>https://github.com/usamaejaz/peekwin#readme</docsUrl>
+    <bugTrackerUrl>https://github.com/usamaejaz/peekwin/issues</bugTrackerUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <summary>Windows-native CLI for window management, input automation, UI inspection, screenshots, and wait primitives.</summary>
+    <description>peekwin is a Windows-native CLI for OS-level automation. It exposes focused primitives for window management, input simulation, UI inspection, screenshots, clipboard access, and wait-based synchronization.</description>
+    <releaseNotes>https://github.com/usamaejaz/peekwin/releases/tag/v__VERSION__</releaseNotes>
+    <tags>windows automation cli win32 ui-automation screenshot input clipboard wait</tags>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>

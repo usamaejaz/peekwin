@@ -1,0 +1,11 @@
+$ErrorActionPreference = 'Stop'
+
+$toolsDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$filePath = Join-Path $toolsDir 'peekwin.exe'
+
+Get-ChocolateyWebFile `
+    -PackageName $env:ChocolateyPackageName `
+    -FileFullPath $filePath `
+    -Url64bit '__URL64__' `
+    -Checksum64 '__CHECKSUM64__' `
+    -ChecksumType64 'sha256'

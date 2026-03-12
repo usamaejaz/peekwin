@@ -120,3 +120,83 @@ jobs:
         with:
           generate_release_notes: true
           files: release-assets/*
+
+  publish_chocolatey:
+    name: Publish Chocolatey package
+    runs-on: windows-latest
+    needs: release
+    if: ${{ secrets.CHOCOLATEY_API_KEY != '' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Download release executables
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          pattern: release-*
+          merge-multiple: true
+
+      - name: Build Chocolatey package
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag.TrimStart('v')
+          $checksumLine = Get-Content -Path "release-assets/peekwin-$tag-win-x64.exe.sha256" -Raw
+          $checksum = ($checksumLine -split '\s+')[0].Trim().ToLowerInvariant()
+          $url64 = "https://github.com/${{ github.repository }}/releases/download/$tag/peekwin-$tag-win-x64.exe"
+
+          .\scripts\build-chocolatey-package.ps1 `
+            -Version $version `
+            -Url64 $url64 `
+            -Checksum64 $checksum
+
+      - name: Push Chocolatey package
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag.TrimStart('v')
+          $packagePath = Join-Path $PWD "artifacts\chocolatey\peekwin.$version.nupkg"
+          if (-not (Test-Path $packagePath)) {
+            throw "Chocolatey package not found: $packagePath"
+          }
+
+          choco push $packagePath --source https://push.chocolatey.org/ --api-key "${{ secrets.CHOCOLATEY_API_KEY }}"
+          if ($LASTEXITCODE -ne 0) {
+            throw "choco push failed with exit code $LASTEXITCODE."
+          }
+
+  publish_winget:
+    name: Submit winget update
+    runs-on: windows-latest
+    needs: release
+    if: ${{ secrets.WINGET_CREATE_GITHUB_TOKEN != '' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Download wingetcreate
+        shell: pwsh
+        run: |
+          $headers = @{ 'User-Agent' = 'peekwin-release-workflow' }
+          $release = Invoke-RestMethod -Headers $headers -Uri 'https://api.github.com/repos/microsoft/winget-create/releases/latest'
+          $asset = $release.assets | Where-Object { $_.name -eq 'wingetcreate.exe' } | Select-Object -First 1
+          if (-not $asset) {
+            throw 'Could not find wingetcreate.exe in the latest winget-create release.'
+          }
+
+          $targetPath = Join-Path $env:RUNNER_TEMP 'wingetcreate.exe'
+          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $targetPath
+          & $targetPath --version
+
+      - name: Submit winget package update
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          .\scripts\publish-winget.ps1 `
+            -Version $version `
+            -Token "${{ secrets.WINGET_CREATE_GITHUB_TOKEN }}" `
+            -WingetCreatePath (Join-Path $env:RUNNER_TEMP 'wingetcreate.exe') `
+            -Submit

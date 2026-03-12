@@ -113,6 +113,41 @@ Produced release assets:
 
 Each executable is a self-contained Windows build of `peekwin`, so the target machine does not need a separate .NET runtime installation.
 
+### Package manager publishing
+
+Tagged releases can also publish package-manager updates:
+
+- GitHub Releases always publishes the raw `.exe` assets and `.sha256` files.
+- Chocolatey publishing runs when the `CHOCOLATEY_API_KEY` repository secret is configured.
+- winget update submission runs when the `WINGET_CREATE_GITHUB_TOKEN` repository secret is configured and the package already exists in the community repository.
+
+Once the package listings are live, the expected install commands are:
+
+```powershell
+winget install --id UsamaEjaz.PeekWin
+choco install peekwin
+```
+
+#### Chocolatey
+
+The release workflow builds a Chocolatey package from the tagged GitHub release and pushes it to the community feed. The package downloads the official `win-x64` release asset from GitHub and verifies its SHA256 checksum before exposing the `peekwin` shim.
+
+#### winget
+
+The release workflow uses `wingetcreate update --submit` for follow-up releases. That works well in CI once the package already exists in `winget-pkgs`, but the very first submission is still a one-time bootstrap.
+
+Run this once from Windows after the first tagged release is live:
+
+```powershell
+wingetcreate new `
+  https://github.com/usamaejaz/peekwin/releases/download/vX.Y.Z/peekwin-vX.Y.Z-win-x64.exe `
+  https://github.com/usamaejaz/peekwin/releases/download/vX.Y.Z/peekwin-vX.Y.Z-win-arm64.exe `
+  -t <github-token> `
+  --submit
+```
+
+`wingetcreate` prompts for package metadata during that initial submission. After the package `UsamaEjaz.PeekWin` is merged into `winget-pkgs`, later `v*` tags can submit updates automatically.
+
 ## JSON output
 
 Commands that support `--json` return a stable envelope:
