@@ -77,9 +77,9 @@ Implemented command surface:
 
 - Native Windows behavior via `user32.dll`, `gdi32.dll`, COM, and related APIs
 - Stable, script-friendly JSON output
-- Simple CLI first, MCP later
+- Simple, scriptable CLI
 - Clean separation between CLI parsing and Windows services
-- Practical virtual desktop support within Windows API limits
+- Virtual desktop support where Windows exposes it cleanly
 
 ## Build
 
@@ -113,7 +113,7 @@ Run the lightweight Windows smoke test:
 
 GitHub release publishing is automated for pushed version tags that match `v*`.
 
-`Directory.Build.props` is the source of truth for the release version. `peekwin version`, assembly/file metadata, and release tags are expected to agree.
+`Directory.Build.props` defines the release version. `peekwin version`, assembly/file metadata, and release tags should stay in sync.
 
 Create and push a release with the helper script:
 
@@ -179,7 +179,7 @@ peekwin now enables per-monitor DPI awareness at startup so cursor movement and 
 
 `peekwin image` requires exactly one target and captures only that monitor, window, or live UI element bounds resolved from `--ref`. Window-relative targeting also accepts `--app` when a process-name match is more convenient. Minimized windows are rejected instead of capturing the desktop area behind them. `peekwin screenshot` remains as an alias.
 
-`peekwin wait` adds polling-based synchronization for windows, saved UI refs, and text matching. The defaults are `--timeout-ms 5000` and `--interval-ms 100`. `wait window` supports `exists`, `visible`, `focused`, `gone`, `minimized`, `maximized`, and `restored`. `wait ref` supports `exists`, `visible`, `focused`, `gone`, `enabled`, and `disabled`. `wait text` polls either a window title or a saved ref name until it contains the requested text. Each ref wait poll revalidates the saved snapshot session, source window identity, and saved UI element identity before treating the ref as live.
+`peekwin wait` adds polling-based wait commands for windows, saved UI refs, and text matching. The defaults are `--timeout-ms 5000` and `--interval-ms 100`. `wait window` supports `exists`, `visible`, `focused`, `gone`, `minimized`, `maximized`, and `restored`. `wait ref` supports `exists`, `visible`, `focused`, `gone`, `enabled`, and `disabled`. `wait text` polls either a window title or a saved ref name until it contains the requested text. Ref waits stay tied to the exact saved element instead of switching to a fuzzy replacement.
 
 ## Usage
 
@@ -423,7 +423,7 @@ peekwin clipboard set "hello from peekwin"
 peekwin clipboard set --text "copied value"
 ```
 
-`clipboard get` reads Unicode text from the current clipboard. `clipboard set` writes Unicode text directly, which is useful for automation chains and later MCP-style flows.
+`clipboard get` reads Unicode text from the current clipboard. `clipboard set` writes Unicode text directly, which is useful for automation chains and scripts.
 
 ### Hold keys or a mouse button
 
