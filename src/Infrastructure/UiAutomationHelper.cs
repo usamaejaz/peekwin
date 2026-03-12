@@ -85,6 +85,25 @@ internal static class UiAutomationHelper
         return false;
     }
 
+    public static bool TryGetElementStateByPath(nint hwnd, string path, out AutomationElementState state)
+        => TryGetElementStateByPath(hwnd, path, out state, out _);
+
+    public static bool TryGetElementStateByPath(nint hwnd, string path, out AutomationElementState state, out string? error)
+    {
+        if (TryWithElementByPath(
+            hwnd,
+            path,
+            static element => CreateElementState(element),
+            out state,
+            out error))
+        {
+            return true;
+        }
+
+        state = default!;
+        return false;
+    }
+
     public static bool TryGetNodeByPath(nint hwnd, string path, out AutomationTreeNode node)
         => TryGetNodeByPath(hwnd, path, out node, out _);
 
@@ -167,6 +186,24 @@ internal static class UiAutomationHelper
 
     private static AutomationTreeNode CreateNode(IUIAutomationElement element, string currentRef, string? parentRef, string path, int depth)
     {
+        var state = CreateElementState(element);
+        return new AutomationTreeNode(
+            currentRef,
+            parentRef,
+            path,
+            depth,
+            state.Name,
+            state.AutomationId,
+            state.ControlType,
+            NormalizeRole(state.ControlType),
+            state.Bounds,
+            state.IsKeyboardFocusable,
+            state.IsEnabled,
+            state.IsOffscreen);
+    }
+
+    private static AutomationElementState CreateElementState(IUIAutomationElement element)
+    {
         var name = ReadBstr(element.get_CurrentName);
         var automationId = ReadBstr(element.get_CurrentAutomationId);
         var controlType = ReadInt(element.get_CurrentControlType);
@@ -174,21 +211,17 @@ internal static class UiAutomationHelper
         var isKeyboardFocusable = ReadBool(element.get_CurrentIsKeyboardFocusable);
         var isEnabled = ReadBool(element.get_CurrentIsEnabled);
         var isOffscreen = ReadBool(element.get_CurrentIsOffscreen);
+        var hasKeyboardFocus = ReadBool(element.get_CurrentHasKeyboardFocus);
 
-        var controlTypeName = GetControlTypeName(controlType);
-        return new AutomationTreeNode(
-            currentRef,
-            parentRef,
-            path,
-            depth,
+        return new AutomationElementState(
             name,
             automationId,
-            controlTypeName,
-            NormalizeRole(controlTypeName),
+            GetControlTypeName(controlType),
             new RectDto(bounds.Left, bounds.Top, bounds.Right - bounds.Left, bounds.Bottom - bounds.Top),
             isKeyboardFocusable,
             isEnabled,
-            isOffscreen);
+            isOffscreen,
+            hasKeyboardFocus);
     }
 
     private static string NormalizeRole(string controlTypeName)

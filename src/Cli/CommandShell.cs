@@ -15,6 +15,8 @@ public sealed class CommandShell
     private readonly ScreenshotService _screenshotService;
     private readonly VirtualDesktopService _virtualDesktopService;
     private readonly AutomationSnapshotService _automationSnapshotService;
+    private readonly AutomationRefService _automationRefService;
+    private readonly WaitService _waitService;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -23,13 +25,15 @@ public sealed class CommandShell
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
-    public CommandShell(WindowService windowService, InputService inputService, ScreenshotService screenshotService, VirtualDesktopService virtualDesktopService, AutomationSnapshotService automationSnapshotService)
+    public CommandShell(WindowService windowService, InputService inputService, ScreenshotService screenshotService, VirtualDesktopService virtualDesktopService, AutomationSnapshotService automationSnapshotService, AutomationRefService automationRefService, WaitService waitService)
     {
         _windowService = windowService;
         _inputService = inputService;
         _screenshotService = screenshotService;
         _virtualDesktopService = virtualDesktopService;
         _automationSnapshotService = automationSnapshotService;
+        _automationRefService = automationRefService;
+        _waitService = waitService;
     }
 
     public async Task<int> RunAsync(string[] args)
@@ -67,6 +71,7 @@ public sealed class CommandShell
                 "hold" => await HandleHoldAsync(args[1..]),
                 "image" => HandleImageCommand(args[1..], "image"),
                 "screenshot" => HandleImageCommand(args[1..], "screenshot"),
+                "wait" => await HandleWaitAsync(args[1..]),
                 "sleep" => await HandleSleepAsync(args[1..]),
                 _ => Fail(BuildCommandName(args), $"Unknown command: {args[0]}", RequestedJson(args))
             };
@@ -181,6 +186,22 @@ public sealed class CommandShell
                 return;
             case "hold":
                 PrintHoldHelp();
+                return;
+            case "wait":
+                if (args.Count > 1 && !args[1].StartsWith("--", StringComparison.Ordinal))
+                {
+                    switch (args[1].ToLowerInvariant())
+                    {
+                        case "window":
+                            PrintWaitWindowHelp();
+                            return;
+                        case "ref":
+                            PrintWaitRefHelp();
+                            return;
+                    }
+                }
+
+                PrintWaitHelp();
                 return;
             case "keys":
                 PrintKeysHelp();
@@ -1167,6 +1188,83 @@ public sealed class CommandShell
         return 0;
     }
 
+    private async Task<int> HandleWaitAsync(string[] args)
+    {
+        if (args.Length == 0 || IsHelpRequest(args))
+        {
+            PrintWaitHelp();
+            return 0;
+        }
+
+        return args[0].ToLowerInvariant() switch
+        {
+            "window" => await HandleWaitWindowAsync(args[1..]).ConfigureAwait(false),
+            "ref" => await HandleWaitRefAsync(args[1..]).ConfigureAwait(false),
+            _ => Fail("wait", $"Unknown wait subcommand: {args[0]}", RequestedJson(args))
+        };
+    }
+
+    private async Task<int> HandleWaitWindowAsync(string[] args)
+    {
+        const string command = "wait window";
+        if (IsHelpRequest(args))
+        {
+            PrintWaitWindowHelp();
+            return 0;
+        }
+
+        if (!TryParseOptions(command, args, out var options))
+        {
+            return 1;
+        }
+
+        EnsureNoPositionals(command, options);
+        var target = ParseTarget(command, options, allowScreen: false, allowWindow: true, allowRef: false, requireTarget: true);
+        var state = ParseWindowWaitState(options);
+        var request = new WindowWaitRequest(
+            target.Handle,
+            target.Title,
+            target.App,
+            state,
+            ReadWaitTimeout(options),
+            ReadWaitInterval(options));
+
+        var outcome = await _waitService.WaitForWindowAsync(request).ConfigureAwait(false);
+        WriteWaitOutcome(command, outcome, options.HasFlag("json"));
+        return outcome.TimedOut ? 1 : 0;
+    }
+
+    private async Task<int> HandleWaitRefAsync(string[] args)
+    {
+        const string command = "wait ref";
+        if (IsHelpRequest(args))
+        {
+            PrintWaitRefHelp();
+            return 0;
+        }
+
+        if (!TryParseOptions(command, args, out var options))
+        {
+            return 1;
+        }
+
+        EnsureNoPositionals(command, options);
+        var target = ParseTarget(command, options, allowScreen: false, allowWindow: false, allowRef: true, requireTarget: true);
+        var reference = string.IsNullOrWhiteSpace(target.Ref)
+            ? throw new InvalidOperationException("wait ref requires --ref.")
+            : target.Ref;
+
+        var request = new RefWaitRequest(
+            reference,
+            ParseRefWaitState(options),
+            ReadWaitTimeout(options),
+            ReadWaitInterval(options));
+
+        var outcome = await _waitService.WaitForRefAsync(request).ConfigureAwait(false);
+        WriteWaitOutcome(command, outcome, options.HasFlag("json"));
+        return outcome.TimedOut ? 1 : 0;
+    }
+
     private TargetSelector ParseTarget(string command, OptionSet options, bool allowScreen, bool allowWindow, bool allowRef = false, bool requireTarget = false)
     {
         var screen = ReadInt(options, "screen");
@@ -1315,46 +1413,17 @@ public sealed class CommandShell
 
     private ResolvedTarget ResolveRefTarget(string reference)
     {
-        var target = _automationSnapshotService.ResolveRef(reference);
-        WindowInspection window;
-        try
-        {
-            window = _windowService.InspectWindowHandle(target.WindowHandle);
-        }
-        catch (InvalidOperationException)
-        {
-            throw new InvalidOperationException($"UI ref {reference} is stale: source window 0x{target.WindowHandle.ToInt64():X} no longer exists. Run `peekwin see` again.");
-        }
+        var liveRef = _automationRefService.ResolveLiveRef(reference);
 
-        if (!string.Equals(window.ProcessName, target.AppName, StringComparison.OrdinalIgnoreCase)
-            || window.ProcessId != target.ProcessId
-            || !string.Equals(window.ClassName, target.WindowClassName, StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException($"UI ref {reference} is stale: source window changed since the last `peekwin see`. Run `peekwin see` again.");
-        }
-
-        string? lookupError = null;
-        if (string.IsNullOrWhiteSpace(target.Path) || !UiAutomationHelper.TryGetNodeByPath(target.WindowHandle, target.Path!, out var liveNode, out lookupError))
-        {
-            throw new InvalidOperationException($"UI ref {reference} is stale: {lookupError ?? "element no longer exists at the saved path"}. Run `peekwin see` again.");
-        }
-
-        if (!string.Equals(liveNode.ControlType, target.ControlType, StringComparison.Ordinal)
-            || (!string.IsNullOrWhiteSpace(target.AutomationId) && !string.Equals(liveNode.AutomationId, target.AutomationId, StringComparison.Ordinal))
-            || (!string.IsNullOrWhiteSpace(target.Name) && !string.Equals(liveNode.Name, target.Name, StringComparison.Ordinal)))
-        {
-            throw new InvalidOperationException($"UI ref {reference} is stale: element identity changed since the last `peekwin see`. Run `peekwin see` again.");
-        }
-
-        if (liveNode.Bounds.Width <= 0 || liveNode.Bounds.Height <= 0)
+        if (liveRef.Bounds.Width <= 0 || liveRef.Bounds.Height <= 0)
         {
             throw new InvalidOperationException($"UI ref {reference} is stale: live element bounds are invalid. Run `peekwin see` again.");
         }
 
-        var label = string.IsNullOrWhiteSpace(target.Name)
-            ? target.Ref
-            : $"{target.Ref} {target.ControlType} {target.Name}";
-        return new ResolvedTarget("element", label, liveNode.Bounds, target.WindowHandle, AppName: target.AppName, Ref: target.Ref, Path: target.Path);
+        var label = string.IsNullOrWhiteSpace(liveRef.Name)
+            ? liveRef.Ref
+            : $"{liveRef.Ref} {liveRef.ControlType} {liveRef.Name}";
+        return new ResolvedTarget("element", label, liveRef.Bounds, liveRef.WindowHandle, AppName: liveRef.AppName, Ref: liveRef.Ref, Path: liveRef.Path);
     }
 
     private bool FocusResolvedTargetIfNeeded(string command, ResolvedTarget? target, bool asJson)
@@ -1866,6 +1935,11 @@ public sealed class CommandShell
     private static string FormatRect(RectDto rect)
         => $"{rect.Left},{rect.Top} {rect.Width}x{rect.Height}";
 
+    private static string CapitalizeLeading(string value)
+        => string.IsNullOrEmpty(value)
+            ? value
+            : char.ToUpperInvariant(value[0]) + value[1..];
+
     private static (string[] Args, bool Verbose) ExtractGlobalFlags(string[] args)
     {
         if (args.Length == 0)
@@ -1958,6 +2032,96 @@ public sealed class CommandShell
         return value;
     }
 
+    private static string? GetAliasedValue(OptionSet options, string primaryKey, string aliasKey)
+    {
+        var primary = options.GetValueOrDefault(primaryKey);
+        var alias = options.GetValueOrDefault(aliasKey);
+        if (!string.IsNullOrWhiteSpace(primary) && !string.IsNullOrWhiteSpace(alias) && !string.Equals(primary, alias, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"Received different values for --{primaryKey} and --{aliasKey}.");
+        }
+
+        return string.IsNullOrWhiteSpace(primary) ? alias : primary;
+    }
+
+    private static int ReadWaitTimeout(OptionSet options)
+    {
+        var value = GetAliasedValue(options, "timeout-ms", "timeout");
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return 5000;
+        }
+
+        if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var timeoutMs) || timeoutMs < 0)
+        {
+            throw new InvalidOperationException($"Invalid timeout: {value}");
+        }
+
+        return timeoutMs;
+    }
+
+    private static int ReadWaitInterval(OptionSet options)
+    {
+        var value = GetAliasedValue(options, "interval-ms", "interval");
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return 100;
+        }
+
+        if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var intervalMs) || intervalMs <= 0)
+        {
+            throw new InvalidOperationException($"Invalid interval: {value}");
+        }
+
+        return intervalMs;
+    }
+
+    private static WindowWaitState ParseWindowWaitState(OptionSet options)
+    {
+        var value = options.GetValueOrDefault("state");
+        return value?.Trim().ToLowerInvariant() switch
+        {
+            "exists" => WindowWaitState.Exists,
+            "visible" => WindowWaitState.Visible,
+            "focused" => WindowWaitState.Focused,
+            "gone" => WindowWaitState.Gone,
+            "minimized" => WindowWaitState.Minimized,
+            "maximized" => WindowWaitState.Maximized,
+            "restored" => WindowWaitState.Restored,
+            null or "" => throw new InvalidOperationException("wait window requires --state."),
+            _ => throw new InvalidOperationException("Unsupported window wait state. Use exists, visible, focused, gone, minimized, maximized, or restored.")
+        };
+    }
+
+    private static RefWaitState ParseRefWaitState(OptionSet options)
+    {
+        var value = options.GetValueOrDefault("state");
+        return value?.Trim().ToLowerInvariant() switch
+        {
+            "exists" => RefWaitState.Exists,
+            "visible" => RefWaitState.Visible,
+            "focused" => RefWaitState.Focused,
+            "gone" => RefWaitState.Gone,
+            "enabled" => RefWaitState.Enabled,
+            "disabled" => RefWaitState.Disabled,
+            null or "" => throw new InvalidOperationException("wait ref requires --state."),
+            _ => throw new InvalidOperationException("Unsupported ref wait state. Use exists, visible, focused, gone, enabled, or disabled.")
+        };
+    }
+
+    private static void WriteWaitOutcome(string command, WaitOutcome outcome, bool asJson)
+    {
+        var result = outcome.TimedOut
+            ? CommandResult.Error(
+                $"Timed out after {outcome.ElapsedMs}ms waiting for {outcome.TargetLabel} to become {outcome.State}.",
+                ToWaitData(outcome))
+            : CommandResult.Ok(
+                $"{CapitalizeLeading(outcome.TargetLabel)} became {outcome.State} after {outcome.ElapsedMs}ms.",
+                details: ToWaitData(outcome));
+
+        WriteResult(command, result, asJson);
+    }
+
     private static void WriteResult(string command, CommandResult result, bool asJson)
     {
         if (asJson)
@@ -2034,6 +2198,27 @@ public sealed class CommandShell
                 bounds = target.Bounds
             };
 
+    private static object ToWaitData(WaitOutcome outcome)
+        => new
+        {
+            target = new
+            {
+                kind = outcome.TargetKind,
+                label = outcome.TargetLabel,
+                handle = outcome.Handle,
+                @ref = outcome.Ref,
+                app = outcome.AppName,
+                bounds = outcome.Bounds
+            },
+            state = outcome.State,
+            timedOut = outcome.TimedOut,
+            elapsedMs = outcome.ElapsedMs,
+            timeoutMs = outcome.TimeoutMs,
+            intervalMs = outcome.IntervalMs,
+            pollCount = outcome.PollCount,
+            diagnostic = outcome.Diagnostic
+        };
+
     private static void EnsureNoPositionals(string command, OptionSet options)
     {
         if (options.Positionals.Count > 0)
@@ -2058,7 +2243,7 @@ public sealed class CommandShell
         }
 
         var first = args[0].ToLowerInvariant();
-        if ((first is "window" or "app" or "mouse" or "desktop" or "image" or "screenshot") && args.Count > 1 && !args[1].StartsWith("--", StringComparison.Ordinal))
+        if ((first is "window" or "app" or "mouse" or "desktop" or "image" or "screenshot" or "wait") && args.Count > 1 && !args[1].StartsWith("--", StringComparison.Ordinal))
         {
             return $"{first} {args[1].ToLowerInvariant()}";
         }
@@ -2078,6 +2263,8 @@ public sealed class CommandShell
         Console.WriteLine("  peekwin window focus|inspect|close|minimize|maximize|restore ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) [--json]");
         Console.WriteLine("  peekwin app list [--name <text>] [--json]");
         Console.WriteLine("  peekwin see [[--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>] [--deep | --max-depth <n>] [--role <name>] [--name <text>] [--all|--raw] [--json]");
+        Console.WriteLine("  peekwin wait window ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) --state <name> [--timeout-ms <n>] [--interval-ms <n>] [--json]");
+        Console.WriteLine("  peekwin wait ref --ref <id> --state <name> [--timeout-ms <n>] [--interval-ms <n>] [--json]");
         Console.WriteLine("  peekwin desktop list|current [--json]");
         Console.WriteLine("  peekwin desktop switch <index> [--delay-ms <n>] [--json]");
         Console.WriteLine("  peekwin screens [--json]");
@@ -2257,6 +2444,32 @@ public sealed class CommandShell
         Console.WriteLine("  peekwin hold ctrl shift [--duration-ms <n>] [--app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--json]");
         Console.WriteLine("  peekwin hold --keys ctrl,shift [--duration-ms <n>] [--app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--json]");
         Console.WriteLine("  peekwin hold --button left|right [--duration-ms <n>] [--x <n> --y <n>] [--screen <n> | --app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--focus] [--json]");
+    }
+
+    private static void PrintWaitHelp()
+    {
+        Console.WriteLine("Wait commands:");
+        Console.WriteLine("  peekwin wait window ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) --state exists|visible|focused|gone|minimized|maximized|restored [--timeout-ms <n>|--timeout <n>] [--interval-ms <n>|--interval <n>] [--json]");
+        Console.WriteLine("  peekwin wait ref --ref <id> --state exists|visible|focused|gone|enabled|disabled [--timeout-ms <n>|--timeout <n>] [--interval-ms <n>|--interval <n>] [--json]");
+        Console.WriteLine("  default timeout is 5000ms; default interval is 100ms");
+    }
+
+    private static void PrintWaitWindowHelp()
+    {
+        Console.WriteLine("Wait for window state:");
+        Console.WriteLine("  peekwin wait window ([--app <name>] [--title <text>] | --handle <HWND> | --window <HWND>) --state exists|visible|focused|gone|minimized|maximized|restored [--timeout-ms <n>|--timeout <n>] [--interval-ms <n>|--interval <n>] [--json]");
+        Console.WriteLine("  uses the same window matching rules as other window-targeted commands");
+        Console.WriteLine("  examples: peekwin wait window --title \"Notepad\" --state focused");
+        Console.WriteLine("            peekwin wait window --app chrome --state visible --timeout 10000");
+    }
+
+    private static void PrintWaitRefHelp()
+    {
+        Console.WriteLine("Wait for saved UI ref state:");
+        Console.WriteLine("  peekwin wait ref --ref <id> --state exists|visible|focused|gone|enabled|disabled [--timeout-ms <n>|--timeout <n>] [--interval-ms <n>|--interval <n>] [--json]");
+        Console.WriteLine("  refs stay strict: PeekWin keeps revalidating the saved window identity and saved UI element identity on each poll");
+        Console.WriteLine("  examples: peekwin wait ref --ref e12 --state visible");
+        Console.WriteLine("            peekwin wait ref --ref e12 --state gone --timeout-ms 3000 --json");
     }
 
     private static void PrintImageHelp()
