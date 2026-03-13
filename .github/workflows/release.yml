@@ -127,7 +127,7 @@ jobs:
     needs: release
     env:
       CHOCOLATEY_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
-    if: ${{ env.CHOCOLATEY_API_KEY != '' }}
+    if: ${{ secrets.CHOCOLATEY_API_KEY != '' }}
 
     steps:
       - name: Check out repository
@@ -175,7 +175,7 @@ jobs:
     needs: release
     env:
       WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_CREATE_GITHUB_TOKEN }}
-    if: ${{ env.WINGET_CREATE_GITHUB_TOKEN != '' }}
+    if: ${{ secrets.WINGET_CREATE_GITHUB_TOKEN != '' }}
 
     steps:
       - name: Check out repository
