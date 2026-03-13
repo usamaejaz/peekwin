@@ -1,0 +1,11 @@
+VERIFICATION
+Verification is intended to assist the Chocolatey moderators and community in verifying that this package is the official release from the upstream project.
+
+1. Download the GitHub release asset:
+   __URL64__
+2. Compute the SHA256 hash and confirm it matches:
+   __CHECKSUM64__
+3. Install the package:
+   choco install peekwin --version __VERSION__
+4. Confirm the binary runs:
+   peekwin --help
