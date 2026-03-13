@@ -4,8 +4,6 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "peekwin", "src\peekwin.csproj", "{D2D254B7-0A43-4C4B-8B05-4C70D96D99A1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "peekwin-mcp", "src\peekwin-mcp\peekwin-mcp.csproj", "{8B95A6CF-C47A-4E3E-9030-35E937EF1894}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{C41B1E90-8FA3-41D6-8B66-F85C40C4655F}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PeekWin.DevChecks", "tests\PeekWin.DevChecks\PeekWin.DevChecks.csproj", "{1448EDD9-82FC-4F8B-BFE8-39EAC1CF3B61}"
@@ -20,10 +18,6 @@ Global
 		{D2D254B7-0A43-4C4B-8B05-4C70D96D99A1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D2D254B7-0A43-4C4B-8B05-4C70D96D99A1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D2D254B7-0A43-4C4B-8B05-4C70D96D99A1}.Release|Any CPU.Build.0 = Release|Any CPU
-		{8B95A6CF-C47A-4E3E-9030-35E937EF1894}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{8B95A6CF-C47A-4E3E-9030-35E937EF1894}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{8B95A6CF-C47A-4E3E-9030-35E937EF1894}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{8B95A6CF-C47A-4E3E-9030-35E937EF1894}.Release|Any CPU.Build.0 = Release|Any CPU
 		{1448EDD9-82FC-4F8B-BFE8-39EAC1CF3B61}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{1448EDD9-82FC-4F8B-BFE8-39EAC1CF3B61}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1448EDD9-82FC-4F8B-BFE8-39EAC1CF3B61}.Release|Any CPU.ActiveCfg = Release|Any CPU

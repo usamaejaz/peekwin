@@ -49,22 +49,15 @@ jobs:
       - name: Publish self-contained build
         shell: pwsh
         run: |
-          $projects = @(
-            @{ ProjectPath = ".\src\peekwin.csproj"; OutputName = "peekwin" },
-            @{ ProjectPath = ".\src\peekwin-mcp\peekwin-mcp.csproj"; OutputName = "peekwin-mcp" }
-          )
-
-          foreach ($project in $projects) {
-            dotnet publish $project.ProjectPath `
-              -c Release `
-              -r "${{ matrix.rid }}" `
-              --self-contained true `
-              -p:PublishSingleFile=true `
-              -p:IncludeNativeLibrariesForSelfExtract=true `
-              -p:DebugType=none `
-              -p:DebugSymbols=false `
-              -o ".\artifacts\publish\${{ matrix.rid }}\$($project.OutputName)"
-          }
+          dotnet publish .\src\peekwin.csproj `
+            -c Release `
+            -r "${{ matrix.rid }}" `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:DebugType=none `
+            -p:DebugSymbols=false `
+            -o ".\artifacts\publish\${{ matrix.rid }}"
 
       - name: Stage release executable
         shell: pwsh
@@ -72,46 +65,33 @@ jobs:
           $tag = "${{ github.ref_name }}"
           $expectedVersion = $tag.TrimStart("v")
           $rid = "${{ matrix.rid }}"
-          $assets = @(
-            @{
-              Source = Join-Path $PWD "artifacts\publish\$rid\peekwin\peekwin.exe"
-              ReleaseName = "peekwin-$tag-$rid.exe"
-            },
-            @{
-              Source = Join-Path $PWD "artifacts\publish\$rid\peekwin-mcp\peekwin-mcp.exe"
-              ReleaseName = "peekwin-mcp-$tag-$rid.exe"
-            }
-          )
+          $sourceExe = Join-Path $PWD "artifacts\publish\$rid\peekwin.exe"
+          $releaseExe = Join-Path $PWD "artifacts\peekwin-$tag-$rid.exe"
+          $checksumPath = "$releaseExe.sha256"
 
-          foreach ($asset in $assets) {
-            $sourceExe = $asset.Source
-            $releaseExe = Join-Path $PWD "artifacts\$($asset.ReleaseName)"
-            $checksumPath = "$releaseExe.sha256"
-
-            if (-not (Test-Path $sourceExe)) {
-              throw "Published executable not found: $sourceExe"
-            }
-
-            if (Test-Path $releaseExe) {
-              Remove-Item $releaseExe -Force
-            }
-
-            Copy-Item -Path $sourceExe -Destination $releaseExe -Force
-
-            $versionInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($releaseExe)
-            $actualVersion = $versionInfo.ProductVersion
-            if ([string]::IsNullOrWhiteSpace($actualVersion)) {
-              throw "Built executable is missing ProductVersion metadata: $releaseExe"
-            }
-
-            $actualVersion = $actualVersion.Trim()
-            if ($actualVersion -ne $expectedVersion) {
-              throw "Built executable metadata reports version '$actualVersion' but release tag is '$tag': $releaseExe"
-            }
-
-            $checksum = (Get-FileHash -Path $releaseExe -Algorithm SHA256).Hash.ToLowerInvariant()
-            "$checksum  $(Split-Path -Leaf $releaseExe)" | Set-Content -Path $checksumPath -NoNewline
+          if (-not (Test-Path $sourceExe)) {
+            throw "Published executable not found: $sourceExe"
           }
+
+          if (Test-Path $releaseExe) {
+            Remove-Item $releaseExe -Force
+          }
+
+          Copy-Item -Path $sourceExe -Destination $releaseExe -Force
+
+          $versionInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($releaseExe)
+          $actualVersion = $versionInfo.ProductVersion
+          if ([string]::IsNullOrWhiteSpace($actualVersion)) {
+            throw "Built executable is missing ProductVersion metadata."
+          }
+
+          $actualVersion = $actualVersion.Trim()
+          if ($actualVersion -ne $expectedVersion) {
+            throw "Built executable metadata reports version '$actualVersion' but release tag is '$tag'."
+          }
+
+          $checksum = (Get-FileHash -Path $releaseExe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$checksum  $(Split-Path -Leaf $releaseExe)" | Set-Content -Path $checksumPath -NoNewline
 
       - name: Upload release assets
         uses: actions/upload-artifact@v4
@@ -120,8 +100,6 @@ jobs:
           path: |
             artifacts/peekwin-${{ github.ref_name }}-${{ matrix.rid }}.exe
             artifacts/peekwin-${{ github.ref_name }}-${{ matrix.rid }}.exe.sha256
-            artifacts/peekwin-mcp-${{ github.ref_name }}-${{ matrix.rid }}.exe
-            artifacts/peekwin-mcp-${{ github.ref_name }}-${{ matrix.rid }}.exe.sha256
           if-no-files-found: error
 
   release:

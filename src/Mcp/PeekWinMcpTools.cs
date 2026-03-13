@@ -5,7 +5,7 @@ using PeekWin.Cli;
 namespace PeekWin.Mcp;
 
 [McpServerToolType]
-[Description("MCP tools for running peekwin commands over stdio.")]
+[Description("MCP tools for running peekwin commands over stdio or HTTP.")]
 public sealed class PeekWinMcpTools
 {
     private readonly CommandRunner _commandRunner;

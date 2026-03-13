@@ -10,8 +10,6 @@ Download the latest Windows executable from GitHub Releases:
 
 - `peekwin-<tag>-win-x64.exe` for most Windows PCs
 - `peekwin-<tag>-win-arm64.exe` for Windows on ARM
-- `peekwin-mcp-<tag>-win-x64.exe` for the MCP server on most Windows PCs
-- `peekwin-mcp-<tag>-win-arm64.exe` for the MCP server on Windows on ARM
 
 Rename it to `peekwin.exe` if you want, then run it directly from PowerShell or Command Prompt:
 
@@ -28,8 +26,6 @@ If you already know the version you want, download the exact release asset file 
 
 - `peekwin-v0.3.0-win-x64.exe`
 - `peekwin-v0.3.0-win-arm64.exe`
-- `peekwin-mcp-v0.3.0-win-x64.exe`
-- `peekwin-mcp-v0.3.0-win-arm64.exe`
 
 After downloading, you can rename the file to `peekwin.exe` if you want a shorter command.
 
@@ -116,7 +112,7 @@ Implemented command surface:
 
 ## MCP server
 
-peekwin also ships an MCP server host as `peekwin-mcp`. It supports both stdio and HTTP transports and exposes full command coverage through two MCP tools:
+peekwin includes an MCP server under the `mcp` subcommand. It supports both stdio and HTTP transports and exposes full command coverage through two MCP tools:
 
 - `run_command` to run any `peekwin` command by passing the CLI tokens
 - `get_help` to fetch top-level or command-specific help text
@@ -124,20 +120,20 @@ peekwin also ships an MCP server host as `peekwin-mcp`. It supports both stdio a
 Run the MCP host on Windows over stdio:
 
 ```powershell
-dotnet run --project .\src\peekwin-mcp\peekwin-mcp.csproj
+dotnet run --project .\src\peekwin.csproj -- mcp
 ```
 
 Run the MCP host over HTTP:
 
 ```powershell
-dotnet run --project .\src\peekwin-mcp\peekwin-mcp.csproj -- --transport http --urls http://127.0.0.1:3000 --path /mcp
+dotnet run --project .\src\peekwin.csproj -- mcp --transport http --urls http://127.0.0.1:3000 --path /mcp
 ```
 
 Print the MCP host version or help:
 
 ```powershell
-dotnet run --project .\src\peekwin-mcp\peekwin-mcp.csproj -- version
-dotnet run --project .\src\peekwin-mcp\peekwin-mcp.csproj -- --help
+dotnet run --project .\src\peekwin.csproj -- mcp version
+dotnet run --project .\src\peekwin.csproj -- mcp --help
 ```
 
 ## Build
@@ -193,8 +189,6 @@ Produced release assets:
 
 - `peekwin-<tag>-win-x64.exe`
 - `peekwin-<tag>-win-arm64.exe`
-- `peekwin-mcp-<tag>-win-x64.exe`
-- `peekwin-mcp-<tag>-win-arm64.exe`
 
 Each executable is a self-contained Windows build, so the target machine does not need a separate .NET runtime installation.
 
@@ -213,8 +207,6 @@ Once the package listings are live, the expected install commands are:
 winget install --id UsamaEjaz.PeekWin
 choco install peekwin
 ```
-
-The package-manager installs target the CLI. Use the GitHub release assets for `peekwin-mcp`.
 
 ## JSON output
 

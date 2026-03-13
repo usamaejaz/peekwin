@@ -1,7 +1,6 @@
 param(
     [string]$Configuration = "Debug",
     [string]$ProjectPath = ".\src\peekwin.csproj",
-    [string]$McpProjectPath = ".\src\peekwin-mcp\peekwin-mcp.csproj",
     [string]$OutputPath = ".\artifacts\smoke-test.png",
     [switch]$IncludeInputInjection,
     [switch]$SkipBuild
@@ -94,12 +93,6 @@ try {
         if ($LASTEXITCODE -ne 0) {
             throw "dotnet build failed with exit code $LASTEXITCODE."
         }
-
-        Write-Host "Building peekwin-mcp ($Configuration)..."
-        dotnet build $McpProjectPath -c $Configuration | Out-Host
-        if ($LASTEXITCODE -ne 0) {
-            throw "dotnet build failed with exit code $LASTEXITCODE."
-        }
     }
 
     $resolvedOutput = if ([System.IO.Path]::IsPathRooted($OutputPath)) {
@@ -124,8 +117,8 @@ try {
     }
 
     Invoke-PeekwinCommand -Name "version" -Args @("run", "--project", $ProjectPath, "--", "version") -ExpectedOutput $expectedVersion | Out-Null
-    Invoke-PeekwinCommand -Name "mcp version" -Args @("run", "--project", $McpProjectPath, "--", "version") -ExpectedOutput $expectedVersion | Out-Null
-    Invoke-PeekwinCommand -Name "mcp help" -Args @("run", "--project", $McpProjectPath, "--", "--help") -ExpectedOutput "run_command" | Out-Null
+    Invoke-PeekwinCommand -Name "mcp version" -Args @("run", "--project", $ProjectPath, "--", "mcp", "version") -ExpectedOutput $expectedVersion | Out-Null
+    Invoke-PeekwinCommand -Name "mcp help" -Args @("run", "--project", $ProjectPath, "--", "mcp", "--help") -ExpectedOutput "run_command" | Out-Null
     Invoke-PeekwinCommand -Name "leading verbose version" -Args @("run", "--project", $ProjectPath, "--", "--verbose", "version") -ExpectedOutput $expectedVersion | Out-Null
     Invoke-PeekwinCommand -Name "move help" -Args @("run", "--project", $ProjectPath, "--", "move", "--help") -ExpectedOutput "--ref <id>" | Out-Null
     Invoke-PeekwinCommand -Name "type help" -Args @("run", "--project", $ProjectPath, "--", "type", "--help") -ExpectedOutput "--ref <id>" | Out-Null

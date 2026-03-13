@@ -20,6 +20,7 @@ internal sealed class DevChecks
             VerifyVersionMetadata(repoRoot);
             VerifySnapshotStore(repoRoot);
             VerifyCommandRunner();
+            VerifyMcpHelp();
             Console.WriteLine("PeekWin dev checks passed.");
             return 0;
         }
@@ -101,6 +102,13 @@ internal sealed class DevChecks
         var helpResult = runner.RunAsync(["wait", "ref", "--help"]).GetAwaiter().GetResult();
         Assert(helpResult.Success, "CommandRunner should report success for help.");
         Assert(helpResult.Stdout.Contains("peekwin wait ref --ref <id>", StringComparison.Ordinal), "CommandRunner should capture command help text.");
+    }
+
+    private static void VerifyMcpHelp()
+    {
+        var helpText = PeekWin.Mcp.McpHost.GetHelpText();
+        Assert(helpText.Contains("peekwin mcp - MCP server", StringComparison.Ordinal), "McpHost help should describe the MCP subcommand.");
+        Assert(helpText.Contains("run_command", StringComparison.Ordinal), "McpHost help should list the MCP tools.");
     }
 
     private static WindowInspection CreateWindowInspection(string handle, string title)
