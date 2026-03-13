@@ -127,13 +127,14 @@ jobs:
     needs: release
     env:
       CHOCOLATEY_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
-    if: ${{ secrets.CHOCOLATEY_API_KEY != '' }}
 
     steps:
       - name: Check out repository
+        if: ${{ env.CHOCOLATEY_API_KEY != '' }}
         uses: actions/checkout@v4
 
       - name: Download release executables
+        if: ${{ env.CHOCOLATEY_API_KEY != '' }}
         uses: actions/download-artifact@v4
         with:
           path: release-assets
@@ -141,6 +142,7 @@ jobs:
           merge-multiple: true
 
       - name: Build Chocolatey package
+        if: ${{ env.CHOCOLATEY_API_KEY != '' }}
         shell: pwsh
         run: |
           $tag = "${{ github.ref_name }}"
@@ -155,6 +157,7 @@ jobs:
             -Checksum64 $checksum
 
       - name: Push Chocolatey package
+        if: ${{ env.CHOCOLATEY_API_KEY != '' }}
         shell: pwsh
         run: |
           $tag = "${{ github.ref_name }}"
@@ -164,7 +167,7 @@ jobs:
             throw "Chocolatey package not found: $packagePath"
           }
 
-          choco push $packagePath --source https://push.chocolatey.org/ --api-key "${{ secrets.CHOCOLATEY_API_KEY }}"
+          choco push $packagePath --source https://push.chocolatey.org/ --api-key "$env:CHOCOLATEY_API_KEY"
           if ($LASTEXITCODE -ne 0) {
             throw "choco push failed with exit code $LASTEXITCODE."
           }
@@ -175,18 +178,20 @@ jobs:
     needs: release
     env:
       WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_CREATE_GITHUB_TOKEN }}
-    if: ${{ secrets.WINGET_CREATE_GITHUB_TOKEN != '' }}
 
     steps:
       - name: Check out repository
+        if: ${{ env.WINGET_CREATE_GITHUB_TOKEN != '' }}
         uses: actions/checkout@v4
 
       - name: Set up .NET SDK for wingetcreate
+        if: ${{ env.WINGET_CREATE_GITHUB_TOKEN != '' }}
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 6.0.x
 
       - name: Download wingetcreate
+        if: ${{ env.WINGET_CREATE_GITHUB_TOKEN != '' }}
         shell: pwsh
         run: |
           $targetPath = Join-Path $env:RUNNER_TEMP 'wingetcreate.exe'
@@ -194,11 +199,12 @@ jobs:
           & $targetPath --version
 
       - name: Submit winget package update
+        if: ${{ env.WINGET_CREATE_GITHUB_TOKEN != '' }}
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}".TrimStart('v')
           .\scripts\publish-winget.ps1 `
             -Version $version `
-            -Token "${{ secrets.WINGET_CREATE_GITHUB_TOKEN }}" `
+            -Token "$env:WINGET_CREATE_GITHUB_TOKEN" `
             -WingetCreatePath (Join-Path $env:RUNNER_TEMP 'wingetcreate.exe') `
             -Submit
