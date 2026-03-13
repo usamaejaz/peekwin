@@ -137,7 +137,7 @@ Run the MCP host over HTTP:
 dotnet run --project .\src\peekwin.csproj -- mcp --transport http --urls http://127.0.0.1:3000 --path /mcp
 ```
 
-Print the MCP host version or help:
+Print the MCP host help:
 
 ```powershell
 dotnet run --project .\src\peekwin.csproj -- mcp --help

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Xml.Linq;
+using ModelContextProtocol.Client;
 using PeekWin;
 using PeekWin.Cli;
 using PeekWin.Models;
@@ -21,6 +22,7 @@ internal sealed class DevChecks
             VerifySnapshotStore(repoRoot);
             VerifyCommandRunner();
             VerifyMcpHelp();
+            VerifyMcpStdioRoundTrip(repoRoot, CommandShell.GetVersionText());
             Console.WriteLine("PeekWin dev checks passed.");
             return 0;
         }
@@ -109,6 +111,45 @@ internal sealed class DevChecks
         var helpText = PeekWin.Mcp.McpHost.GetHelpText();
         Assert(helpText.Contains("peekwin mcp - MCP server", StringComparison.Ordinal), "McpHost help should describe the MCP subcommand.");
         Assert(helpText.Contains("window_list", StringComparison.Ordinal), "McpHost help should list named MCP tools.");
+    }
+
+    private static void VerifyMcpStdioRoundTrip(string repoRoot, string expectedVersion)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var peekwinAssemblyPath = typeof(CommandShell).Assembly.Location;
+        Assert(File.Exists(peekwinAssemblyPath), $"Could not locate built peekwin assembly at {peekwinAssemblyPath}.");
+
+        using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var transport = new StdioClientTransport(new StdioClientTransportOptions
+        {
+            Command = "dotnet",
+            Arguments = [peekwinAssemblyPath, "mcp"],
+            WorkingDirectory = repoRoot,
+            Name = "peekwin-devchecks-stdio",
+            ShutdownTimeout = TimeSpan.FromSeconds(2)
+        });
+
+        var client = McpClient.CreateAsync(transport, cancellationToken: cancellationSource.Token).GetAwaiter().GetResult();
+        try
+        {
+            var tools = client.ListToolsAsync(cancellationToken: cancellationSource.Token).GetAwaiter().GetResult();
+            Assert(tools.Any(tool => string.Equals(tool.Name, "window_list", StringComparison.Ordinal)), "MCP stdio tools/list should include window_list.");
+            Assert(tools.Any(tool => string.Equals(tool.Name, "version", StringComparison.Ordinal)), "MCP stdio tools/list should include version.");
+
+            var versionResult = client.CallToolAsync("version", arguments: null, progress: null, options: null, cancellationToken: cancellationSource.Token).GetAwaiter().GetResult();
+            Assert(!versionResult.IsError.GetValueOrDefault(), "MCP stdio version tool should succeed.");
+
+            var serialized = JsonSerializer.Serialize(versionResult);
+            Assert(serialized.Contains(expectedVersion, StringComparison.Ordinal), $"MCP stdio version tool should include version {expectedVersion}.");
+        }
+        finally
+        {
+            client.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        }
     }
 
     private static WindowInspection CreateWindowInspection(string handle, string title)
