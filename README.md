@@ -132,7 +132,6 @@ dotnet run --project .\src\peekwin.csproj -- mcp --transport http --urls http://
 Print the MCP host version or help:
 
 ```powershell
-dotnet run --project .\src\peekwin.csproj -- mcp version
 dotnet run --project .\src\peekwin.csproj -- mcp --help
 ```
 

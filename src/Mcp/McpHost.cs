@@ -16,12 +16,6 @@ public static class McpHost
 
     public static async Task<int> RunAsync(IReadOnlyList<string> args)
     {
-        if (IsVersionRequest(args))
-        {
-            System.Console.WriteLine(CommandShell.GetVersionText());
-            return 0;
-        }
-
         if (IsHelpRequest(args))
         {
             PrintHelp();
@@ -60,7 +54,6 @@ public static class McpHost
             "  peekwin mcp --transport stdio",
             "  peekwin mcp --transport http [--urls <url-list>] [--path <route>] [--stateless]",
             "  peekwin mcp --help",
-            "  peekwin mcp version",
             string.Empty,
             "Transports:",
             "  stdio                          default",
@@ -81,9 +74,6 @@ public static class McpHost
             arg.Equals("--help", StringComparison.OrdinalIgnoreCase)
             || arg.Equals("-h", StringComparison.OrdinalIgnoreCase)
             || arg.Equals("help", StringComparison.OrdinalIgnoreCase));
-
-    private static bool IsVersionRequest(IReadOnlyList<string> args)
-        => args.Count > 0 && args.Any(static arg => arg.Equals("version", StringComparison.OrdinalIgnoreCase));
 
     private static async Task<int> RunStdioServerAsync(string[] args)
     {
@@ -172,7 +162,6 @@ public static class McpHost
                 case "--help":
                 case "-h":
                 case "help":
-                case "version":
                     break;
                 default:
                     if (arg.StartsWith("--", StringComparison.Ordinal))

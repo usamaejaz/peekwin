@@ -117,7 +117,6 @@ try {
     }
 
     Invoke-PeekwinCommand -Name "version" -Args @("run", "--project", $ProjectPath, "--", "version") -ExpectedOutput $expectedVersion | Out-Null
-    Invoke-PeekwinCommand -Name "mcp version" -Args @("run", "--project", $ProjectPath, "--", "mcp", "version") -ExpectedOutput $expectedVersion | Out-Null
     Invoke-PeekwinCommand -Name "mcp help" -Args @("run", "--project", $ProjectPath, "--", "mcp", "--help") -ExpectedOutput "run_command" | Out-Null
     Invoke-PeekwinCommand -Name "leading verbose version" -Args @("run", "--project", $ProjectPath, "--", "--verbose", "version") -ExpectedOutput $expectedVersion | Out-Null
     Invoke-PeekwinCommand -Name "move help" -Args @("run", "--project", $ProjectPath, "--", "move", "--help") -ExpectedOutput "--ref <id>" | Out-Null

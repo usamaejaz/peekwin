@@ -46,8 +46,7 @@ static bool AllowsNonWindowsExecution(IReadOnlyList<string> args)
         || (McpHost.IsMcpCommand(args) && args.Skip(1).Any(static arg =>
             arg.Equals("--help", StringComparison.OrdinalIgnoreCase)
             || arg.Equals("-h", StringComparison.OrdinalIgnoreCase)
-            || arg.Equals("help", StringComparison.OrdinalIgnoreCase)
-            || arg.Equals("version", StringComparison.OrdinalIgnoreCase)));
+            || arg.Equals("help", StringComparison.OrdinalIgnoreCase)));
 
 static bool IsVersionRequest(IReadOnlyList<string> args)
     => args.Count > 0 && args[0].Equals("version", StringComparison.OrdinalIgnoreCase);
