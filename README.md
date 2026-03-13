@@ -112,10 +112,18 @@ Implemented command surface:
 
 ## MCP server
 
-peekwin includes an MCP server under the `mcp` subcommand. It supports both stdio and HTTP transports and exposes full command coverage through two MCP tools:
+peekwin includes an MCP server under the `mcp` subcommand. It supports both stdio and HTTP transports and exposes named MCP tools across the full command surface.
 
-- `run_command` to run any `peekwin` command by passing the CLI tokens
-- `get_help` to fetch top-level or command-specific help text
+Examples:
+
+- `window_list`
+- `window_focus`
+- `click`
+- `see_ui`
+- `wait_window`
+- `capture_image`
+- `clipboard_set`
+- `get_help`
 
 Run the MCP host on Windows over stdio:
 

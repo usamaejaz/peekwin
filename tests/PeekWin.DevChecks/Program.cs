@@ -108,7 +108,7 @@ internal sealed class DevChecks
     {
         var helpText = PeekWin.Mcp.McpHost.GetHelpText();
         Assert(helpText.Contains("peekwin mcp - MCP server", StringComparison.Ordinal), "McpHost help should describe the MCP subcommand.");
-        Assert(helpText.Contains("run_command", StringComparison.Ordinal), "McpHost help should list the MCP tools.");
+        Assert(helpText.Contains("window_list", StringComparison.Ordinal), "McpHost help should list named MCP tools.");
     }
 
     private static WindowInspection CreateWindowInspection(string handle, string title)
