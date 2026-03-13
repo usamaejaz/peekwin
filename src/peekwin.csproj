@@ -11,8 +11,11 @@
 
   <ItemGroup>
     <Compile Remove="peekwin/**" />
+    <Compile Remove="peekwin-mcp/**" />
     <EmbeddedResource Remove="peekwin/**" />
+    <EmbeddedResource Remove="peekwin-mcp/**" />
     <None Remove="peekwin/**" />
+    <None Remove="peekwin-mcp/**" />
   </ItemGroup>
 
 </Project>

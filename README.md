@@ -10,6 +10,8 @@ Download the latest Windows executable from GitHub Releases:
 
 - `peekwin-<tag>-win-x64.exe` for most Windows PCs
 - `peekwin-<tag>-win-arm64.exe` for Windows on ARM
+- `peekwin-mcp-<tag>-win-x64.exe` for the MCP server on most Windows PCs
+- `peekwin-mcp-<tag>-win-arm64.exe` for the MCP server on Windows on ARM
 
 Rename it to `peekwin.exe` if you want, then run it directly from PowerShell or Command Prompt:
 
@@ -26,6 +28,8 @@ If you already know the version you want, download the exact release asset file 
 
 - `peekwin-v0.3.0-win-x64.exe`
 - `peekwin-v0.3.0-win-arm64.exe`
+- `peekwin-mcp-v0.3.0-win-x64.exe`
+- `peekwin-mcp-v0.3.0-win-arm64.exe`
 
 After downloading, you can rename the file to `peekwin.exe` if you want a shorter command.
 
@@ -57,7 +61,7 @@ peekwin app list
 peekwin screens
 peekwin click --x 400 --y 300
 peekwin type --text "hello"
-peekwin image --screen 0 --path .\shot.png
+peekwin image --screen 0 --output .\shot.png
 peekwin wait window --app notepad --state focused
 ```
 
@@ -109,6 +113,26 @@ Implemented command surface:
 - Simple, scriptable CLI
 - Clean separation between CLI parsing and Windows services
 - Virtual desktop support where Windows exposes it cleanly
+
+## MCP server
+
+peekwin also ships an MCP server host as `peekwin-mcp`. It uses stdio transport and exposes full command coverage through two MCP tools:
+
+- `run_command` to run any `peekwin` command by passing the CLI tokens
+- `get_help` to fetch top-level or command-specific help text
+
+Run the MCP host on Windows:
+
+```powershell
+dotnet run --project .\src\peekwin-mcp\peekwin-mcp.csproj
+```
+
+Print the MCP host version or help:
+
+```powershell
+dotnet run --project .\src\peekwin-mcp\peekwin-mcp.csproj -- version
+dotnet run --project .\src\peekwin-mcp\peekwin-mcp.csproj -- --help
+```
 
 ## Build
 
@@ -163,8 +187,10 @@ Produced release assets:
 
 - `peekwin-<tag>-win-x64.exe`
 - `peekwin-<tag>-win-arm64.exe`
+- `peekwin-mcp-<tag>-win-x64.exe`
+- `peekwin-mcp-<tag>-win-arm64.exe`
 
-Each executable is a self-contained Windows build of `peekwin`, so the target machine does not need a separate .NET runtime installation.
+Each executable is a self-contained Windows build, so the target machine does not need a separate .NET runtime installation.
 
 ### Package manager publishing
 
@@ -181,6 +207,8 @@ Once the package listings are live, the expected install commands are:
 winget install --id UsamaEjaz.PeekWin
 choco install peekwin
 ```
+
+The package-manager installs target the CLI. Use the GitHub release assets for `peekwin-mcp`.
 
 ## JSON output
 

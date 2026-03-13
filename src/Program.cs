@@ -1,7 +1,7 @@
 using System.Runtime.Versioning;
+using PeekWin;
 using PeekWin.Cli;
 using PeekWin.Infrastructure;
-using PeekWin.Services;
 
 [assembly: SupportedOSPlatform("windows")]
 
@@ -14,13 +14,13 @@ if (!OperatingSystem.IsWindows())
 {
     if (!AllowsNonWindowsExecution(args))
     {
-        Console.Error.WriteLine("peekwin currently runs on Windows only.");
+        System.Console.Error.WriteLine("peekwin currently runs on Windows only.");
         return 1;
     }
 
     if (IsVersionRequest(args))
     {
-        Console.WriteLine(CommandShell.GetVersionText());
+        System.Console.WriteLine(CommandShell.GetVersionText());
     }
     else
     {
@@ -30,25 +30,7 @@ if (!OperatingSystem.IsWindows())
     return 0;
 }
 
-return await CreateShell().RunAsync(args);
-
-static CommandShell CreateShell()
-{
-    var windowService = new WindowService();
-    var clipboardService = new ClipboardService();
-    var inputService = new InputService();
-    var automationSnapshotService = new AutomationSnapshotService();
-    var automationRefService = new AutomationRefService(automationSnapshotService, windowService);
-    return new CommandShell(
-        windowService,
-        inputService,
-        clipboardService,
-        new ScreenshotService(),
-        new VirtualDesktopService(inputService),
-        automationSnapshotService,
-        automationRefService,
-        new WaitService(windowService, automationRefService));
-}
+return await PeekWinRuntimeFactory.CreateCommandShell().RunAsync(args);
 
 static bool AllowsNonWindowsExecution(IReadOnlyList<string> args)
     => args.Count == 0

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Xml.Linq;
+using PeekWin;
 using PeekWin.Cli;
 using PeekWin.Models;
 using PeekWin.Services;
@@ -18,6 +19,7 @@ internal sealed class DevChecks
             var repoRoot = FindRepoRoot();
             VerifyVersionMetadata(repoRoot);
             VerifySnapshotStore(repoRoot);
+            VerifyCommandRunner();
             Console.WriteLine("PeekWin dev checks passed.");
             return 0;
         }
@@ -86,6 +88,19 @@ internal sealed class DevChecks
             {
             }
         }
+    }
+
+    private static void VerifyCommandRunner()
+    {
+        var runner = PeekWinRuntimeFactory.CreateCommandRunner();
+        var versionResult = runner.RunAsync(["version"]).GetAwaiter().GetResult();
+        Assert(versionResult.Success, "CommandRunner should report success for version.");
+        Assert(string.IsNullOrWhiteSpace(versionResult.Stderr), "CommandRunner version should not write to stderr.");
+        Assert(!string.IsNullOrWhiteSpace(versionResult.Stdout), "CommandRunner version should capture stdout.");
+
+        var helpResult = runner.RunAsync(["wait", "ref", "--help"]).GetAwaiter().GetResult();
+        Assert(helpResult.Success, "CommandRunner should report success for help.");
+        Assert(helpResult.Stdout.Contains("peekwin wait ref --ref <id>", StringComparison.Ordinal), "CommandRunner should capture command help text.");
     }
 
     private static WindowInspection CreateWindowInspection(string handle, string title)
