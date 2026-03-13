@@ -116,15 +116,21 @@ Implemented command surface:
 
 ## MCP server
 
-peekwin also ships an MCP server host as `peekwin-mcp`. It uses stdio transport and exposes full command coverage through two MCP tools:
+peekwin also ships an MCP server host as `peekwin-mcp`. It supports both stdio and HTTP transports and exposes full command coverage through two MCP tools:
 
 - `run_command` to run any `peekwin` command by passing the CLI tokens
 - `get_help` to fetch top-level or command-specific help text
 
-Run the MCP host on Windows:
+Run the MCP host on Windows over stdio:
 
 ```powershell
 dotnet run --project .\src\peekwin-mcp\peekwin-mcp.csproj
+```
+
+Run the MCP host over HTTP:
+
+```powershell
+dotnet run --project .\src\peekwin-mcp\peekwin-mcp.csproj -- --transport http --urls http://127.0.0.1:3000 --path /mcp
 ```
 
 Print the MCP host version or help:
