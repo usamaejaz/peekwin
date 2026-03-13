@@ -15,6 +15,19 @@ Use `peekwin` when you need deterministic Windows desktop automation from the co
 
 ## Quick start
 
+If you need the exact syntax for any command, use:
+
+- `peekwin --help`
+- `peekwin help`
+- `peekwin <command> --help`
+- `peekwin <command> <subcommand> --help`
+
+Examples:
+
+- `peekwin window --help`
+- `peekwin click --help`
+- `peekwin wait ref --help`
+
 1. Find the target window
    - `peekwin window list --json`
    - `peekwin app list --json`
