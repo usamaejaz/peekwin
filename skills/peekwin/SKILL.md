@@ -134,8 +134,8 @@ peekwin wait text --ref e12 --contains Save --timeout-ms 3000
 ### Capture a specific target
 
 ```powershell
-peekwin image --title "Calculator" --path calc.png
-peekwin image --ref e12 --path button.png
+peekwin image --title "Calculator" --output calc.png
+peekwin image --ref e12 --output button.png
 ```
 
 ## Command map
