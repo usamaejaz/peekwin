@@ -1,0 +1,43 @@
+{
+  "manifest_version": "0.3",
+  "name": "peekwin",
+  "display_name": "PeekWin",
+  "version": "__VERSION__",
+  "description": "Local Claude Desktop extension for the PeekWin MCP server.",
+  "long_description": "Runs the bundled PeekWin binary locally and exposes PeekWin's MCP tools inside Claude Desktop.",
+  "author": {
+    "name": "Usama Ejaz",
+    "url": "https://github.com/usamaejaz"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/usamaejaz/peekwin.git"
+  },
+  "homepage": "https://github.com/usamaejaz/peekwin",
+  "documentation": "https://github.com/usamaejaz/peekwin#readme",
+  "support": "https://github.com/usamaejaz/peekwin/issues",
+  "license": "MIT",
+  "keywords": [
+    "automation",
+    "mcp",
+    "peekwin",
+    "windows"
+  ],
+  "server": {
+    "type": "binary",
+    "entry_point": "server/peekwin.exe",
+    "mcp_config": {
+      "command": "${__dirname}/server/peekwin.exe",
+      "args": [
+        "mcp"
+      ]
+    }
+  },
+  "tools_generated": true,
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": [
+      "win32"
+    ]
+  }
+}
