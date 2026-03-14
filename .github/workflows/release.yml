@@ -147,14 +147,19 @@ jobs:
         run: |
           $tag = "${{ github.ref_name }}"
           $version = $tag.TrimStart('v')
-          $checksumLine = Get-Content -Path "release-assets/peekwin-$tag-win-x64.exe.sha256" -Raw
-          $checksum = ($checksumLine -split '\s+')[0].Trim().ToLowerInvariant()
+          $checksum64Line = Get-Content -Path "release-assets/peekwin-$tag-win-x64.exe.sha256" -Raw
+          $checksum64 = ($checksum64Line -split '\s+')[0].Trim().ToLowerInvariant()
+          $checksumArm64Line = Get-Content -Path "release-assets/peekwin-$tag-win-arm64.exe.sha256" -Raw
+          $checksumArm64 = ($checksumArm64Line -split '\s+')[0].Trim().ToLowerInvariant()
           $url64 = "https://github.com/${{ github.repository }}/releases/download/$tag/peekwin-$tag-win-x64.exe"
+          $urlArm64 = "https://github.com/${{ github.repository }}/releases/download/$tag/peekwin-$tag-win-arm64.exe"
 
           .\scripts\build-chocolatey-package.ps1 `
             -Version $version `
             -Url64 $url64 `
-            -Checksum64 $checksum
+            -Checksum64 $checksum64 `
+            -UrlArm64 $urlArm64 `
+            -ChecksumArm64 $checksumArm64
 
       - name: Push Chocolatey package
         if: ${{ env.CHOCOLATEY_API_KEY != '' }}

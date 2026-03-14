@@ -5,6 +5,10 @@ param(
     [string]$Url64,
     [Parameter(Mandatory = $true)]
     [string]$Checksum64,
+    [Parameter(Mandatory = $true)]
+    [string]$UrlArm64,
+    [Parameter(Mandatory = $true)]
+    [string]$ChecksumArm64,
     [string]$OutputDirectory = ".\artifacts\chocolatey"
 )
 
@@ -20,6 +24,10 @@ if ($Version -notmatch '^\d+\.\d+\.\d+$') {
 
 if ($Checksum64 -notmatch '^[0-9a-fA-F]{64}$') {
     throw "Checksum64 must be a SHA256 hex string."
+}
+
+if ($ChecksumArm64 -notmatch '^[0-9a-fA-F]{64}$') {
+    throw "ChecksumArm64 must be a SHA256 hex string."
 }
 
 $workspaceRoot = Split-Path -Parent $PSScriptRoot
@@ -39,6 +47,8 @@ $replacements = @{
     '__VERSION__' = $Version
     '__URL64__' = $Url64
     '__CHECKSUM64__' = $Checksum64.ToLowerInvariant()
+    '__URLARM64__' = $UrlArm64
+    '__CHECKSUMARM64__' = $ChecksumArm64.ToLowerInvariant()
 }
 
 Get-ChildItem -Path $stagingRoot -Recurse -File | ForEach-Object {
