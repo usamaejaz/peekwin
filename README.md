@@ -125,19 +125,39 @@ Examples:
 - `clipboard_set`
 - `get_help`
 
-Run the MCP host on Windows over stdio:
+Run the installed `peekwin` executable over stdio:
+
+```powershell
+peekwin mcp
+```
+
+Run the installed `peekwin` executable over HTTP:
+
+```powershell
+peekwin mcp --transport http --urls http://127.0.0.1:3000 --path /mcp
+```
+
+Print the MCP host help:
+
+```powershell
+peekwin mcp --help
+```
+
+If you are running from a source checkout instead of an installed executable, use `dotnet run`:
+
+Run from source over stdio:
 
 ```powershell
 dotnet run --project .\src\peekwin.csproj -- mcp
 ```
 
-Run the MCP host over HTTP:
+Run from source over HTTP:
 
 ```powershell
 dotnet run --project .\src\peekwin.csproj -- mcp --transport http --urls http://127.0.0.1:3000 --path /mcp
 ```
 
-Print the MCP host help:
+Print source-run help:
 
 ```powershell
 dotnet run --project .\src\peekwin.csproj -- mcp --help
