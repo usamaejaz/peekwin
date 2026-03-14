@@ -46,6 +46,11 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      - name: Set up Node.js for MCPB packaging
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - name: Publish self-contained build
         shell: pwsh
         run: |
@@ -93,6 +98,34 @@ jobs:
           $checksum = (Get-FileHash -Path $releaseExe -Algorithm SHA256).Hash.ToLowerInvariant()
           "$checksum  $(Split-Path -Leaf $releaseExe)" | Set-Content -Path $checksumPath -NoNewline
 
+      - name: Build Claude Desktop MCPB bundle
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag.TrimStart('v')
+          $rid = "${{ matrix.rid }}"
+          $releaseExe = Join-Path $PWD "artifacts\peekwin-$tag-$rid.exe"
+
+          .\scripts\build-mcpb-package.ps1 `
+            -Version $version `
+            -Rid $rid `
+            -InputExe $releaseExe
+
+      - name: Stage MCPB checksum
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $rid = "${{ matrix.rid }}"
+          $mcpbPath = Join-Path $PWD "artifacts\peekwin-$tag-claude-desktop-$rid.mcpb"
+          $checksumPath = "$mcpbPath.sha256"
+
+          if (-not (Test-Path $mcpbPath)) {
+            throw "MCPB bundle not found: $mcpbPath"
+          }
+
+          $checksum = (Get-FileHash -Path $mcpbPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$checksum  $(Split-Path -Leaf $mcpbPath)" | Set-Content -Path $checksumPath -NoNewline
+
       - name: Upload release assets
         uses: actions/upload-artifact@v4
         with:
@@ -100,6 +133,8 @@ jobs:
           path: |
             artifacts/peekwin-${{ github.ref_name }}-${{ matrix.rid }}.exe
             artifacts/peekwin-${{ github.ref_name }}-${{ matrix.rid }}.exe.sha256
+            artifacts/peekwin-${{ github.ref_name }}-claude-desktop-${{ matrix.rid }}.mcpb
+            artifacts/peekwin-${{ github.ref_name }}-claude-desktop-${{ matrix.rid }}.mcpb.sha256
           if-no-files-found: error
 
   release:

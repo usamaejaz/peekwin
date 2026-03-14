@@ -24,6 +24,8 @@ Download the latest Windows executable from GitHub Releases:
 
 - `peekwin-<tag>-win-x64.exe` for most Windows PCs
 - `peekwin-<tag>-win-arm64.exe` for Windows on ARM
+- `peekwin-<tag>-claude-desktop-win-x64.mcpb` for Claude Desktop on most Windows PCs
+- `peekwin-<tag>-claude-desktop-win-arm64.mcpb` for Claude Desktop on Windows on ARM
 
 Rename it to `peekwin.exe` if you want, then run it directly from PowerShell or Command Prompt:
 
@@ -87,6 +89,16 @@ Run the installed `peekwin` executable over stdio:
 ```powershell
 peekwin mcp
 ```
+
+Install the packaged Claude Desktop extension from a release asset:
+
+1. Download the `.mcpb` file for your Windows architecture
+2. Open Claude Desktop
+3. Go to `Settings`
+4. Open `Extensions`
+5. Open `Advanced settings`
+6. Choose `Install Extension...`
+7. Select the `.mcpb` file
 
 Run the installed `peekwin` executable over HTTP:
 
@@ -153,6 +165,8 @@ Produced release assets:
 
 - `peekwin-<tag>-win-x64.exe`
 - `peekwin-<tag>-win-arm64.exe`
+- `peekwin-<tag>-claude-desktop-win-x64.mcpb`
+- `peekwin-<tag>-claude-desktop-win-arm64.mcpb`
 
 Each executable is a self-contained Windows build, so the target machine does not need a separate .NET runtime installation.
 

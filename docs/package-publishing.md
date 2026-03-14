@@ -9,8 +9,9 @@ Tagged releases can publish:
 - GitHub release assets
 - A Chocolatey package
 - A winget update
+- Claude Desktop `.mcpb` bundles
 
-The release workflow always publishes the raw `.exe` assets and `.sha256` files. Package-manager publishing is conditional on the relevant repository secrets being configured.
+The release workflow always publishes the raw `.exe` assets, Claude Desktop `.mcpb` bundles, and matching `.sha256` files. Package-manager publishing is conditional on the relevant repository secrets being configured.
 
 ## Chocolatey
 
