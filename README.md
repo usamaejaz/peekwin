@@ -4,7 +4,16 @@ peekwin is a Windows-native CLI for window control, input automation, screen ins
 
 ## Install
 
-### Option 1 - Download from GitHub Releases
+### Package managers
+
+Package manager listings can take a little time to show up after a release or moderation step. When available, use:
+
+```powershell
+winget install --id UsamaEjaz.PeekWin
+choco install peekwin
+```
+
+### Download the binary
 
 Download the latest Windows executable from GitHub Releases:
 
@@ -20,16 +29,9 @@ Rename it to `peekwin.exe` if you want, then run it directly from PowerShell or 
 
 If you want it available from anywhere, add the folder containing `peekwin.exe` to your `PATH`.
 
-### Option 2 - Download a specific release file
+If you need a specific version, download the asset from that release tag.
 
-If you already know the version you want, download the exact release asset file directly:
-
-- `peekwin-v0.3.0-win-x64.exe`
-- `peekwin-v0.3.0-win-arm64.exe`
-
-After downloading, you can rename the file to `peekwin.exe` if you want a shorter command.
-
-### Option 3 - Build from source
+### Build from source
 
 Build from source with the .NET 8 SDK:
 
@@ -37,16 +39,6 @@ Build from source with the .NET 8 SDK:
 git clone https://github.com/usamaejaz/peekwin.git
 cd peekwin
 dotnet build -c Release
-```
-
-### Package manager installs
-
-Planned, but not available yet:
-
-```powershell
-winget install usamaejaz.peekwin   # pending
-scoop install peekwin              # pending
-choco install peekwin              # pending
 ```
 
 ## Quick examples
@@ -200,16 +192,16 @@ GitHub release publishing is automated for pushed version tags that match `v*`.
 Create and push a release with the helper script:
 
 ```powershell
-.\scripts\release.ps1 0.3.1
+.\scripts\release.ps1 0.4.1
 ```
 
-This updates `Directory.Build.props`, creates a version-bump commit, creates tag `v0.3.1`, and pushes the branch and tag. Use `-NoPush` to keep the commit and tag local, or `-DryRun` to preview the release steps. `-DryRun` also skips the Windows-only guard so you can preview the flow from non-Windows PowerShell.
+This updates `Directory.Build.props`, creates a version-bump commit, creates tag `v0.4.1`, and pushes the branch and tag. Use `-NoPush` to keep the commit and tag local, or `-DryRun` to preview the release steps. `-DryRun` also skips the Windows-only guard so you can preview the flow from non-Windows PowerShell.
 
 You can still push a tag manually if needed:
 
 ```bash
-git tag v0.3.1
-git push origin v0.3.1
+git tag v0.4.1
+git push origin v0.4.1
 ```
 
 Produced release assets:
@@ -228,7 +220,7 @@ Tagged releases can also publish package-manager updates:
 - winget update submission runs when the `WINGET_CREATE_GITHUB_TOKEN` repository secret is configured and the package already exists in the community repository.
 - Maintainer details for Chocolatey and winget publishing live in `docs/package-publishing.md`.
 
-Once the package listings are live, the expected install commands are:
+When the package listings are live, install with:
 
 ```powershell
 winget install --id UsamaEjaz.PeekWin
