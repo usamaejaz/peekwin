@@ -4,12 +4,17 @@ peekwin is a Windows-native CLI for window control, input automation, screen ins
 
 ## Install
 
-### Package managers
-
 Package manager listings can take a little time to show up after a release or moderation step. When available, use:
+
+### WinGet
 
 ```powershell
 winget install --id UsamaEjaz.PeekWin
+```
+
+### Chocolatey
+
+```powershell
 choco install peekwin
 ```
 
@@ -95,26 +100,6 @@ Print the MCP host help:
 peekwin mcp --help
 ```
 
-If you are running from a source checkout instead of an installed executable, use `dotnet run`:
-
-Run from source over stdio:
-
-```powershell
-dotnet run --project .\src\peekwin.csproj -- mcp
-```
-
-Run from source over HTTP:
-
-```powershell
-dotnet run --project .\src\peekwin.csproj -- mcp --transport http --urls http://127.0.0.1:3000 --path /mcp
-```
-
-Print source-run help:
-
-```powershell
-dotnet run --project .\src\peekwin.csproj -- mcp --help
-```
-
 ## Build
 
 The CLI is Windows-only at runtime, but it can be built from a Linux host with the .NET 8 SDK installed.
@@ -170,22 +155,6 @@ Produced release assets:
 - `peekwin-<tag>-win-arm64.exe`
 
 Each executable is a self-contained Windows build, so the target machine does not need a separate .NET runtime installation.
-
-### Package manager publishing
-
-Tagged releases can also publish package-manager updates:
-
-- GitHub Releases always publishes the raw `.exe` assets and `.sha256` files.
-- Chocolatey publishing runs when the `CHOCOLATEY_API_KEY` repository secret is configured.
-- winget update submission runs when the `WINGET_CREATE_GITHUB_TOKEN` repository secret is configured and the package already exists in the community repository.
-- Maintainer details for Chocolatey and winget publishing live in `docs/package-publishing.md`.
-
-When the package listings are live, install with:
-
-```powershell
-winget install --id UsamaEjaz.PeekWin
-choco install peekwin
-```
 
 ## Help
 
