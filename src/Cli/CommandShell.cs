@@ -2586,6 +2586,7 @@ public sealed class CommandShell
         Console.WriteLine("  peekwin screens [--json]");
         Console.WriteLine("  peekwin image (--screen <n> | [--app <name>] [--title <text>] | --handle <HWND> | --window <HWND> | --ref <id>) [--focus] [--output <path>] [--json]");
         Console.WriteLine("  peekwin screenshot ...   alias for 'peekwin image'");
+        Console.WriteLine("  peekwin mcp [--transport stdio|http] [--urls <url-list>] [--path <route>] [--stateless]");
         Console.WriteLine();
         Console.WriteLine("Pointer commands:");
         Console.WriteLine("  peekwin move [--x <n> --y <n>] [target] [--focus] [--duration-ms <n>] [--steps <n>] [--json]");
@@ -2621,7 +2622,7 @@ public sealed class CommandShell
         Console.WriteLine("Global flags:");
         Console.WriteLine("  --verbose, -v       print exception details for troubleshooting");
         Console.WriteLine();
-        Console.WriteLine("Use 'peekwin <command> --help' for command-specific help.");
+        Console.WriteLine("Use 'peekwin <command> --help' for command-specific help, including 'peekwin mcp --help'.");
     }
 
     private static void PrintWindowHelp()
