@@ -2,7 +2,8 @@ $ErrorActionPreference = 'Stop'
 
 $toolsDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $filePath = Join-Path $toolsDir 'peekwin.exe'
-$isArm64 = ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64' -or $env:PROCESSOR_ARCHITEW6432 -eq 'ARM64')
+$osArchitecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToUpperInvariant()
+$isArm64 = $osArchitecture -eq 'ARM64'
 $downloadUrl = '__URL64__'
 $downloadChecksum = '__CHECKSUM64__'
 
