@@ -16,7 +16,7 @@ The release workflow always publishes the raw `.exe` assets and `.sha256` files.
 
 Chocolatey publishing runs when `CHOCOLATEY_API_KEY` is configured in the repository secrets.
 
-The workflow builds a Chocolatey package from the tagged GitHub release and pushes it to the community feed. The package downloads the official `win-x64` release asset from GitHub and verifies its SHA256 checksum before exposing the `peekwin` shim.
+The workflow builds a Chocolatey package from the tagged GitHub release and pushes it to the community feed. The package downloads the official `win-x64` asset on x64 Windows and the official `win-arm64` asset on ARM64 Windows, verifying the matching SHA256 checksum before exposing the `peekwin` shim.
 
 ## winget
 

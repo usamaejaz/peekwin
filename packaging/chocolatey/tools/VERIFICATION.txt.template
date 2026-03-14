@@ -1,10 +1,12 @@
 VERIFICATION
 Verification is intended to assist the Chocolatey moderators and community in verifying that this package is the official release from the upstream project.
 
-1. Download the GitHub release asset:
-   __URL64__
-2. Compute the SHA256 hash and confirm it matches:
-   __CHECKSUM64__
+1. Download the GitHub release asset for your Windows architecture:
+   x64: __URL64__
+   arm64: __URLARM64__
+2. Compute the SHA256 hash and confirm it matches the downloaded asset:
+   x64: __CHECKSUM64__
+   arm64: __CHECKSUMARM64__
 3. Install the package:
    choco install peekwin --version __VERSION__
 4. Confirm the binary runs:

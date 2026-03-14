@@ -2,10 +2,19 @@ $ErrorActionPreference = 'Stop'
 
 $toolsDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $filePath = Join-Path $toolsDir 'peekwin.exe'
+$osArchitecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToUpperInvariant()
+$isArm64 = $osArchitecture -eq 'ARM64'
+$downloadUrl = '__URL64__'
+$downloadChecksum = '__CHECKSUM64__'
+
+if ($isArm64) {
+    $downloadUrl = '__URLARM64__'
+    $downloadChecksum = '__CHECKSUMARM64__'
+}
 
 Get-ChocolateyWebFile `
     -PackageName $env:ChocolateyPackageName `
     -FileFullPath $filePath `
-    -Url64bit '__URL64__' `
-    -Checksum64 '__CHECKSUM64__' `
-    -ChecksumType64 'sha256'
+    -Url $downloadUrl `
+    -Checksum $downloadChecksum `
+    -ChecksumType 'sha256'
