@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Net;
+using System.Net.Sockets;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Xml.Linq;
@@ -23,6 +25,7 @@ internal sealed class DevChecks
             VerifyCommandRunner();
             VerifyMcpHelp();
             VerifyMcpStdioRoundTrip(repoRoot, CommandShell.GetVersionText());
+            VerifyMcpHttpRoundTrip(repoRoot, CommandShell.GetVersionText());
             Console.WriteLine("PeekWin dev checks passed.");
             return 0;
         }
@@ -136,20 +139,131 @@ internal sealed class DevChecks
         var client = McpClient.CreateAsync(transport, cancellationToken: cancellationSource.Token).GetAwaiter().GetResult();
         try
         {
-            var tools = client.ListToolsAsync(cancellationToken: cancellationSource.Token).GetAwaiter().GetResult();
-            Assert(tools.Any(tool => string.Equals(tool.Name, "window_list", StringComparison.Ordinal)), "MCP stdio tools/list should include window_list.");
-            Assert(tools.Any(tool => string.Equals(tool.Name, "version", StringComparison.Ordinal)), "MCP stdio tools/list should include version.");
-
-            var versionResult = client.CallToolAsync("version", arguments: null, progress: null, options: null, cancellationToken: cancellationSource.Token).GetAwaiter().GetResult();
-            Assert(!versionResult.IsError.GetValueOrDefault(), "MCP stdio version tool should succeed.");
-
-            var serialized = JsonSerializer.Serialize(versionResult);
-            Assert(serialized.Contains(expectedVersion, StringComparison.Ordinal), $"MCP stdio version tool should include version {expectedVersion}.");
+            VerifyMcpRoundTrip(client, cancellationSource.Token, expectedVersion, "stdio");
         }
         finally
         {
             client.DisposeAsync().AsTask().GetAwaiter().GetResult();
         }
+    }
+
+    private static void VerifyMcpHttpRoundTrip(string repoRoot, string expectedVersion)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var peekwinAssemblyPath = typeof(CommandShell).Assembly.Location;
+        Assert(File.Exists(peekwinAssemblyPath), $"Could not locate built peekwin assembly at {peekwinAssemblyPath}.");
+
+        var port = ReserveLoopbackPort();
+        var endpoint = new Uri($"http://127.0.0.1:{port}/mcp");
+        using var server = StartMcpHttpServer(peekwinAssemblyPath, repoRoot, endpoint);
+        WaitForLoopbackPort(endpoint.Port, server.Process, server.StandardError, TimeSpan.FromSeconds(10));
+
+        using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var transport = new HttpClientTransport(new HttpClientTransportOptions
+        {
+            Endpoint = endpoint,
+            TransportMode = HttpTransportMode.StreamableHttp,
+            Name = "peekwin-devchecks-http",
+            ConnectionTimeout = TimeSpan.FromSeconds(5)
+        });
+
+        var client = McpClient.CreateAsync(transport, cancellationToken: cancellationSource.Token).GetAwaiter().GetResult();
+        try
+        {
+            VerifyMcpRoundTrip(client, cancellationSource.Token, expectedVersion, "HTTP");
+        }
+        finally
+        {
+            client.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        }
+    }
+
+    private static void VerifyMcpRoundTrip(McpClient client, CancellationToken cancellationToken, string expectedVersion, string transportName)
+    {
+        var tools = client.ListToolsAsync(cancellationToken: cancellationToken).GetAwaiter().GetResult();
+        Assert(tools.Any(tool => string.Equals(tool.Name, "window_list", StringComparison.Ordinal)), $"MCP {transportName} tools/list should include window_list.");
+        Assert(tools.Any(tool => string.Equals(tool.Name, "version", StringComparison.Ordinal)), $"MCP {transportName} tools/list should include version.");
+
+        var versionResult = client.CallToolAsync("version", arguments: null, progress: null, options: null, cancellationToken: cancellationToken).GetAwaiter().GetResult();
+        Assert(!versionResult.IsError.GetValueOrDefault(), $"MCP {transportName} version tool should succeed.");
+
+        var serialized = JsonSerializer.Serialize(versionResult);
+        Assert(serialized.Contains(expectedVersion, StringComparison.Ordinal), $"MCP {transportName} version tool should include version {expectedVersion}.");
+    }
+
+    private static int ReserveLoopbackPort()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        try
+        {
+            return ((IPEndPoint)listener.LocalEndpoint).Port;
+        }
+        finally
+        {
+            listener.Stop();
+        }
+    }
+
+    private static StartedProcess StartMcpHttpServer(string peekwinAssemblyPath, string repoRoot, Uri endpoint)
+    {
+        var startInfo = new ProcessStartInfo("dotnet")
+        {
+            WorkingDirectory = repoRoot,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardError = true
+        };
+        startInfo.ArgumentList.Add(peekwinAssemblyPath);
+        startInfo.ArgumentList.Add("mcp");
+        startInfo.ArgumentList.Add("--transport");
+        startInfo.ArgumentList.Add("http");
+        startInfo.ArgumentList.Add("--urls");
+        startInfo.ArgumentList.Add(endpoint.GetLeftPart(UriPartial.Authority));
+        startInfo.ArgumentList.Add("--path");
+        startInfo.ArgumentList.Add(endpoint.AbsolutePath);
+
+        var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Failed to start peekwin MCP HTTP host.");
+
+        return new StartedProcess(process, process.StandardError.ReadToEndAsync());
+    }
+
+    private static void WaitForLoopbackPort(int port, Process process, Task<string> standardError, TimeSpan timeout)
+    {
+        var deadline = Stopwatch.StartNew();
+        while (deadline.Elapsed < timeout)
+        {
+            if (process.HasExited)
+            {
+                var stderr = standardError.GetAwaiter().GetResult().Trim();
+                throw new InvalidOperationException(
+                    string.IsNullOrWhiteSpace(stderr)
+                        ? $"peekwin MCP HTTP host exited early with code {process.ExitCode}."
+                        : $"peekwin MCP HTTP host exited early with code {process.ExitCode}: {stderr}");
+            }
+
+            try
+            {
+                using var client = new TcpClient();
+                client.Connect(IPAddress.Loopback, port);
+                if (client.Connected)
+                {
+                    return;
+                }
+            }
+            catch (SocketException)
+            {
+            }
+
+            Thread.Sleep(100);
+        }
+
+        throw new InvalidOperationException($"Timed out waiting for peekwin MCP HTTP host on port {port}.");
     }
 
     private static WindowInspection CreateWindowInspection(string handle, string title)
@@ -217,5 +331,29 @@ internal sealed class DevChecks
         }
 
         throw new InvalidOperationException("Could not locate the repository root.");
+    }
+
+    private sealed class StartedProcess : IDisposable
+    {
+        public StartedProcess(Process process, Task<string> standardError)
+        {
+            Process = process;
+            StandardError = standardError;
+        }
+
+        public Process Process { get; }
+
+        public Task<string> StandardError { get; }
+
+        public void Dispose()
+        {
+            if (!Process.HasExited)
+            {
+                Process.Kill(entireProcessTree: true);
+                Process.WaitForExit(5000);
+            }
+
+            Process.Dispose();
+        }
     }
 }
