@@ -24,6 +24,7 @@ internal sealed class DevChecks
             VerifySnapshotStore(repoRoot);
             VerifyCommandRunner();
             VerifyMcpHelp();
+            VerifyMcpRejectsUnexpectedArgument(repoRoot);
             VerifyMcpStdioRoundTrip(repoRoot, CommandShell.GetVersionText());
             VerifyMcpHttpRoundTrip(repoRoot, CommandShell.GetVersionText());
             Console.WriteLine("PeekWin dev checks passed.");
@@ -114,6 +115,40 @@ internal sealed class DevChecks
         var helpText = PeekWin.Mcp.McpHost.GetHelpText();
         Assert(helpText.Contains("peekwin mcp - MCP server", StringComparison.Ordinal), "McpHost help should describe the MCP subcommand.");
         Assert(helpText.Contains("window_list", StringComparison.Ordinal), "McpHost help should list named MCP tools.");
+    }
+
+    private static void VerifyMcpRejectsUnexpectedArgument(string repoRoot)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var peekwinAssemblyPath = typeof(CommandShell).Assembly.Location;
+        Assert(File.Exists(peekwinAssemblyPath), $"Could not locate built peekwin assembly at {peekwinAssemblyPath}.");
+
+        var startInfo = new ProcessStartInfo("dotnet")
+        {
+            WorkingDirectory = repoRoot,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true
+        };
+        startInfo.ArgumentList.Add(peekwinAssemblyPath);
+        startInfo.ArgumentList.Add("mcp");
+        startInfo.ArgumentList.Add("unexpected");
+
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Failed to start peekwin MCP invalid-argument check.");
+
+        Assert(process.WaitForExit(5000), "peekwin mcp unexpected should exit quickly.");
+        var stdout = process.StandardOutput.ReadToEnd();
+        var stderr = process.StandardError.ReadToEnd();
+
+        Assert(process.ExitCode == 1, $"peekwin mcp unexpected should fail with exit code 1, got {process.ExitCode}.");
+        Assert(string.IsNullOrWhiteSpace(stdout), "peekwin mcp unexpected should not write to stdout.");
+        Assert(stderr.Contains("Unexpected argument: unexpected", StringComparison.Ordinal), "peekwin mcp unexpected should explain the invalid argument.");
     }
 
     private static void VerifyMcpStdioRoundTrip(string repoRoot, string expectedVersion)

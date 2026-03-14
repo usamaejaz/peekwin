@@ -168,13 +168,11 @@ public static class McpHost
                 case "help":
                     break;
                 default:
-                    if (arg.StartsWith("--", StringComparison.Ordinal))
-                    {
-                        System.Console.Error.WriteLine($"Unknown option: {arg}");
-                        return null;
-                    }
-
-                    break;
+                    System.Console.Error.WriteLine(
+                        arg.StartsWith("--", StringComparison.Ordinal)
+                            ? $"Unknown option: {arg}"
+                            : $"Unexpected argument: {arg}");
+                    return null;
             }
         }
 

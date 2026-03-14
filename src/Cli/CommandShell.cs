@@ -228,6 +228,9 @@ public sealed class CommandShell
             case "version":
                 PrintVersionHelp();
                 return;
+            case "mcp":
+                PeekWin.Mcp.McpHost.PrintHelp();
+                return;
             case "image":
             case "screenshot":
                 PrintImageHelp();
