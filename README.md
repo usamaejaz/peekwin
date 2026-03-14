@@ -57,7 +57,7 @@ peekwin app list
 peekwin screens
 peekwin click --x 400 --y 300
 peekwin type --text "hello"
-peekwin image --screen 0 --path .\shot.png
+peekwin image --screen 0 --output .\shot.png
 peekwin wait window --app notepad --state focused
 ```
 
@@ -109,6 +109,59 @@ Implemented command surface:
 - Simple, scriptable CLI
 - Clean separation between CLI parsing and Windows services
 - Virtual desktop support where Windows exposes it cleanly
+
+## MCP server
+
+peekwin includes an MCP server under the `mcp` subcommand. It supports both stdio and HTTP transports and exposes named MCP tools across the full command surface.
+
+Examples:
+
+- `window_list`
+- `window_focus`
+- `click`
+- `see_ui`
+- `wait_window`
+- `capture_image`
+- `clipboard_set`
+- `get_help`
+
+Run the installed `peekwin` executable over stdio:
+
+```powershell
+peekwin mcp
+```
+
+Run the installed `peekwin` executable over HTTP:
+
+```powershell
+peekwin mcp --transport http --urls http://127.0.0.1:3000 --path /mcp
+```
+
+Print the MCP host help:
+
+```powershell
+peekwin mcp --help
+```
+
+If you are running from a source checkout instead of an installed executable, use `dotnet run`:
+
+Run from source over stdio:
+
+```powershell
+dotnet run --project .\src\peekwin.csproj -- mcp
+```
+
+Run from source over HTTP:
+
+```powershell
+dotnet run --project .\src\peekwin.csproj -- mcp --transport http --urls http://127.0.0.1:3000 --path /mcp
+```
+
+Print source-run help:
+
+```powershell
+dotnet run --project .\src\peekwin.csproj -- mcp --help
+```
 
 ## Build
 
@@ -164,7 +217,7 @@ Produced release assets:
 - `peekwin-<tag>-win-x64.exe`
 - `peekwin-<tag>-win-arm64.exe`
 
-Each executable is a self-contained Windows build of `peekwin`, so the target machine does not need a separate .NET runtime installation.
+Each executable is a self-contained Windows build, so the target machine does not need a separate .NET runtime installation.
 
 ### Package manager publishing
 

@@ -1,7 +1,8 @@
 using System.Runtime.Versioning;
+using PeekWin;
 using PeekWin.Cli;
 using PeekWin.Infrastructure;
-using PeekWin.Services;
+using PeekWin.Mcp;
 
 [assembly: SupportedOSPlatform("windows")]
 
@@ -10,17 +11,22 @@ if (OperatingSystem.IsWindows())
     TryEnablePerMonitorDpiAwareness();
 }
 
+if (McpHost.IsMcpCommand(args))
+{
+    return await McpHost.RunAsync(args[1..]).ConfigureAwait(false);
+}
+
 if (!OperatingSystem.IsWindows())
 {
     if (!AllowsNonWindowsExecution(args))
     {
-        Console.Error.WriteLine("peekwin currently runs on Windows only.");
+        System.Console.Error.WriteLine("peekwin currently runs on Windows only.");
         return 1;
     }
 
     if (IsVersionRequest(args))
     {
-        Console.WriteLine(CommandShell.GetVersionText());
+        System.Console.WriteLine(CommandShell.GetVersionText());
     }
     else
     {
@@ -30,31 +36,17 @@ if (!OperatingSystem.IsWindows())
     return 0;
 }
 
-return await CreateShell().RunAsync(args);
-
-static CommandShell CreateShell()
-{
-    var windowService = new WindowService();
-    var clipboardService = new ClipboardService();
-    var inputService = new InputService();
-    var automationSnapshotService = new AutomationSnapshotService();
-    var automationRefService = new AutomationRefService(automationSnapshotService, windowService);
-    return new CommandShell(
-        windowService,
-        inputService,
-        clipboardService,
-        new ScreenshotService(),
-        new VirtualDesktopService(inputService),
-        automationSnapshotService,
-        automationRefService,
-        new WaitService(windowService, automationRefService));
-}
+return await PeekWinRuntimeFactory.CreateCommandShell().RunAsync(args);
 
 static bool AllowsNonWindowsExecution(IReadOnlyList<string> args)
     => args.Count == 0
         || args.Any(static arg => arg.Equals("--help", StringComparison.OrdinalIgnoreCase) || arg.Equals("-h", StringComparison.OrdinalIgnoreCase))
         || args[0].Equals("help", StringComparison.OrdinalIgnoreCase)
-        || args[0].Equals("version", StringComparison.OrdinalIgnoreCase);
+        || args[0].Equals("version", StringComparison.OrdinalIgnoreCase)
+        || (McpHost.IsMcpCommand(args) && args.Skip(1).Any(static arg =>
+            arg.Equals("--help", StringComparison.OrdinalIgnoreCase)
+            || arg.Equals("-h", StringComparison.OrdinalIgnoreCase)
+            || arg.Equals("help", StringComparison.OrdinalIgnoreCase)));
 
 static bool IsVersionRequest(IReadOnlyList<string> args)
     => args.Count > 0 && args[0].Equals("version", StringComparison.OrdinalIgnoreCase);

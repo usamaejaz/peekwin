@@ -11,8 +11,21 @@
 
   <ItemGroup>
     <Compile Remove="peekwin/**" />
+    <Compile Remove="peekwin-mcp/**" />
     <EmbeddedResource Remove="peekwin/**" />
+    <EmbeddedResource Remove="peekwin-mcp/**" />
     <None Remove="peekwin/**" />
+    <None Remove="peekwin-mcp/**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ModelContextProtocol" Version="1.1.0" />
+    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.1.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
   </ItemGroup>
 
 </Project>
