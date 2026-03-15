@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Text.Json;
 using ModelContextProtocol.Server;
 using PeekWin.Cli;
 
@@ -213,7 +214,7 @@ public sealed class PeekWinMcpTools
     {
         if (result.Json is not null)
         {
-            return result.Json;
+            return result.Json.Deserialize<JsonElement>();
         }
 
         var stdout = result.Stdout.Trim();
