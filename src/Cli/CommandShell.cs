@@ -843,8 +843,10 @@ public sealed class CommandShell
         }
 
         var point = ResolvePoint(command, options, resolvedTarget, requirePointIfNoTarget: true, defaultToCenterWhenTargeted: true);
-        var durationMs = ReadNonNegativeInt(options, "duration-ms") ?? 0;
-        var steps = ReadPositiveInt(options, "steps") ?? 12;
+        var requestedDurationMs = ReadNonNegativeInt(options, "duration-ms");
+        var requestedSteps = ReadPositiveInt(options, "steps");
+        var start = _inputService.GetCursorPosition();
+        var (durationMs, steps) = _inputService.ResolveAutoMoveProfile(start.X, start.Y, point.X, point.Y, requestedDurationMs, requestedSteps);
 
         await _inputService.MoveMouseAsync(point.X, point.Y, durationMs, steps).ConfigureAwait(false);
         WriteResult(
