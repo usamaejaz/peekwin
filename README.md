@@ -149,16 +149,16 @@ GitHub release publishing is automated for pushed version tags that match `v*`.
 Create and push a release with the helper script:
 
 ```powershell
-.\scripts\release.ps1 0.4.1
+.\scripts\release.ps1 0.5.0
 ```
 
-This updates `Directory.Build.props`, creates a version-bump commit, creates tag `v0.4.1`, and pushes the branch and tag. Use `-NoPush` to keep the commit and tag local, or `-DryRun` to preview the release steps. `-DryRun` also skips the Windows-only guard so you can preview the flow from non-Windows PowerShell.
+This updates `Directory.Build.props`, creates a version-bump commit, creates tag `v0.5.0`, and pushes the branch and tag. Use `-NoPush` to keep the commit and tag local, or `-DryRun` to preview the release steps. `-DryRun` also skips the Windows-only guard so you can preview the flow from non-Windows PowerShell.
 
 You can still push a tag manually if needed:
 
 ```bash
-git tag v0.4.1
-git push origin v0.4.1
+git tag v0.5.0
+git push origin v0.5.0
 ```
 
 Produced release assets:

@@ -94,11 +94,24 @@ public sealed class WindowService
 
         if (NativeMethods.IsIconic(hwnd))
         {
-            NativeMethods.ShowWindow(hwnd, NativeMethods.SW_RESTORE);
+            var restoreResult = RestoreWindow(hwnd);
+            if (!restoreResult.Success)
+            {
+                return restoreResult;
+            }
         }
 
-        var success = NativeMethods.BringWindowToTop(hwnd) && NativeMethods.SetForegroundWindow(hwnd);
-        return success
+        NativeMethods.BringWindowToTop(hwnd);
+        var success = NativeMethods.SetForegroundWindow(hwnd);
+        if (!success && NativeMethods.GetForegroundWindow() != hwnd)
+        {
+            Thread.Sleep(50);
+            NativeMethods.BringWindowToTop(hwnd);
+            success = NativeMethods.SetForegroundWindow(hwnd);
+        }
+
+        var focused = NativeMethods.GetForegroundWindow() == hwnd;
+        return success || focused
             ? CommandResult.Ok($"Focused window {FormatHandle(hwnd)}.")
             : CommandResult.Error($"Failed to focus window {FormatHandle(hwnd)} ({DescribeWindowState(hwnd)}). Windows may block foreground activation.");
     }
@@ -151,7 +164,28 @@ public sealed class WindowService
         => ApplyWindowAction(hwnd, "maximize", static handle => NativeMethods.ShowWindow(handle, NativeMethods.SW_MAXIMIZE));
 
     public CommandResult RestoreWindow(nint hwnd)
-        => ApplyWindowAction(hwnd, "restore", static handle => NativeMethods.ShowWindow(handle, NativeMethods.SW_RESTORE));
+    {
+        if (hwnd == 0 || !NativeMethods.IsWindow(hwnd))
+        {
+            return CommandResult.Error($"Invalid or destroyed window handle: {FormatHandle(hwnd)}.");
+        }
+
+        if (!NativeMethods.IsIconic(hwnd) && !NativeMethods.IsZoomed(hwnd))
+        {
+            return CommandResult.Ok($"{Capitalize("restore")}d window {FormatHandle(hwnd)}.");
+        }
+
+        NativeMethods.ShowWindow(hwnd, NativeMethods.SW_RESTORE);
+        if (NativeMethods.IsIconic(hwnd))
+        {
+            Thread.Sleep(50);
+            NativeMethods.ShowWindow(hwnd, NativeMethods.SW_RESTORE);
+        }
+
+        return !NativeMethods.IsIconic(hwnd)
+            ? CommandResult.Ok($"{Capitalize("restore")}d window {FormatHandle(hwnd)}.")
+            : CommandResult.Error($"Failed to restore window {FormatHandle(hwnd)}.");
+    }
 
     public CommandResult MoveWindow(nint hwnd, int x, int y)
     {

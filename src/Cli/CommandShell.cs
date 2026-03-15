@@ -814,8 +814,8 @@ public sealed class CommandShell
         WriteResult(
             command,
             CommandResult.Ok(
-                $"Clicked {button.ToString().ToLowerInvariant()} at {FormatPointForMessage(resolvedTarget, point.X, point.Y)}.",
-                details: new { button, point = ToPointData(point.X, point.Y), relativePoint = ToRelativePointData(resolvedTarget, point.X, point.Y), target = ToTargetData(resolvedTarget) }),
+                $"{(isDouble ? "Double-clicked" : "Clicked")} {button.ToString().ToLowerInvariant()} at {FormatPointForMessage(resolvedTarget, point.X, point.Y)}.",
+                details: new { button, doubleClick = isDouble, delayMs, point = ToPointData(point.X, point.Y), relativePoint = ToRelativePointData(resolvedTarget, point.X, point.Y), target = ToTargetData(resolvedTarget) }),
             options.HasFlag("json"));
         return 0;
     }
@@ -1368,8 +1368,7 @@ public sealed class CommandShell
         }
 
         EnsureNoPositionals(command, options);
-        var output = options.GetValueOrDefault("output")
-            ?? Path.Combine(Environment.CurrentDirectory, $"peekwin-{DateTime.UtcNow:yyyyMMddHHmmss}.png");
+        var output = options.GetValueOrDefault("output") ?? GetDefaultImageOutputPath();
         var target = ParseTarget(command, options, allowScreen: true, allowWindow: true, allowRef: true, requireTarget: true);
         var resolvedTarget = target.Screen is null ? ResolveCaptureWindowTarget(command, target)! : ResolveBoundsTarget(command, target)!;
         if (target.Screen is null && !PreparePointerTarget(command, options, target, ref resolvedTarget))
@@ -1958,6 +1957,12 @@ public sealed class CommandShell
 
         return options.HasFlag("deep") ? 32 : 1;
     }
+
+    private static string GetDefaultImageOutputPath()
+        => Path.Combine(
+            Path.GetTempPath(),
+            "peekwin",
+            $"peekwin-{DateTime.UtcNow:yyyyMMddHHmmss}.png");
 
     private static SeeFilterOptions ResolveSeeFilters(OptionSet options)
         => new(
@@ -2745,6 +2750,7 @@ public sealed class CommandShell
     {
         Console.WriteLine("Press command:");
         Console.WriteLine("  peekwin press [key] [--key <name>] [--repeat <n>] [--delay-ms <n>] [--app <name> | --title <text> | --handle <HWND> | --window <HWND> | --ref <id>] [--json]");
+        Console.WriteLine("  `return` is accepted as an alias for `enter`");
     }
 
     private static void PrintHotkeyHelp()
@@ -2826,6 +2832,7 @@ public sealed class CommandShell
         Console.WriteLine("  peekwin image (--screen <n> | [--app <name>] [--title <text>] | --handle <HWND> | --window <HWND> | --ref <id>) [--focus] [--output <path>] [--json]");
         Console.WriteLine("  peekwin screenshot ...             alias for 'peekwin image'");
         Console.WriteLine("  peekwin image info [--json]        alias for 'peekwin screens'");
+        Console.WriteLine("  when --output is omitted, PeekWin writes to the system temp folder");
         Console.WriteLine("  use --focus to bring window/ref targets to the foreground before capture");
         Console.WriteLine("  screen indexes are zero-based; --ref captures the live element bounds");
     }

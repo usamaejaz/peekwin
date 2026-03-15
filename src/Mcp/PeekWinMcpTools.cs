@@ -106,19 +106,9 @@ public sealed class PeekWinMcpTools
         => RunJson(cancellationToken, "desktop", "switch", Opt("index", index), Opt("delay-ms", delayMs));
 
     [McpServerTool(Name = "screens", ReadOnly = true)]
-    [Description("Return monitor layout information.")]
+    [Description("Return monitor layout information for screen targeting and coordinate planning. Do not use this to understand UI contents or read what is on screen.")]
     public Task<CommandRunResult> Screens(CancellationToken cancellationToken)
         => RunJson(cancellationToken, "screens");
-
-    [McpServerTool(Name = "image_info", ReadOnly = true)]
-    [Description("Return image capture layout information.")]
-    public Task<CommandRunResult> ImageInfo(CancellationToken cancellationToken)
-        => RunJson(cancellationToken, "image", "info");
-
-    [McpServerTool(Name = "screenshot_info", ReadOnly = true)]
-    [Description("Return screenshot capture layout information.")]
-    public Task<CommandRunResult> ScreenshotInfo(CancellationToken cancellationToken)
-        => RunJson(cancellationToken, "screenshot", "info");
 
     [McpServerTool(Name = "pointer_move")]
     [Description("Move the mouse pointer, optionally relative to a target.")]
@@ -186,9 +176,9 @@ public sealed class PeekWinMcpTools
         => RunJson(cancellationToken, "keys", Opt("steps", JoinCsv(steps)), Opt("delay-ms", delayMs), KeyboardTarget(app, title, handle, window, reference));
 
     [McpServerTool(Name = "see_ui", ReadOnly = true)]
-    [Description("Inspect the UI Automation tree for the foreground window or a targeted window.")]
-    public Task<CommandRunResult> SeeUi(string? app, string? title, string? handle, string? window, bool deep, int? maxDepth, string? role, string? name, bool all, CancellationToken cancellationToken)
-        => RunJson(cancellationToken, "see", WindowTarget(app, title, handle, window), Flag("deep", deep), Opt("max-depth", maxDepth), Opt("role", role), Opt("name", name), Flag("all", all));
+    [Description("Inspect the UI Automation tree for the foreground or a targeted window. This is the preferred first tool when the user asks to see the screen, inspect what is on screen, understand visible UI, or find actionable controls. Prefer this before image capture.")]
+    public Task<CommandRunResult> SeeUi(string? app, string? title, string? handle, string? window, bool? deep, int? maxDepth, string? role, string? name, bool all, CancellationToken cancellationToken)
+        => RunJson(cancellationToken, "see", WindowTarget(app, title, handle, window), Flag("deep", deep ?? true), Opt("max-depth", maxDepth), Opt("role", role), Opt("name", name), Flag("all", all));
 
     [McpServerTool(Name = "hold_input")]
     [Description("Hold keys or a mouse button for a duration.")]
@@ -202,14 +192,9 @@ public sealed class PeekWinMcpTools
             Flag("focus", focus));
 
     [McpServerTool(Name = "capture_image")]
-    [Description("Capture an image of a screen, window, or saved ref.")]
+    [Description("Capture a raw image file of a screen, window, or saved ref. Use this only after see_ui when you specifically need pixels, visual verification, or a screenshot artifact. Do not use this as the first tool just to understand what is on screen.")]
     public Task<CommandRunResult> CaptureImage(string? output, int? screen, string? app, string? title, string? handle, string? window, string? reference, bool focus, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "image", Opt("output", output), PointerTarget(screen, app, title, handle, window, reference), Flag("focus", focus));
-
-    [McpServerTool(Name = "capture_screenshot")]
-    [Description("Alias for image capture, using the screenshot command name.")]
-    public Task<CommandRunResult> CaptureScreenshot(string? output, int? screen, string? app, string? title, string? handle, string? window, string? reference, bool focus, CancellationToken cancellationToken)
-        => RunJson(cancellationToken, "screenshot", Opt("output", output), PointerTarget(screen, app, title, handle, window, reference), Flag("focus", focus));
 
     [McpServerTool(Name = "wait_window")]
     [Description("Wait for a window to reach a state like visible, focused, or gone.")]

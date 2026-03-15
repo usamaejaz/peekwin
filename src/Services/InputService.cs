@@ -673,6 +673,7 @@ internal static class VirtualKeyParser
         ["backspace"] = 0x08,
         ["tab"] = 0x09,
         ["enter"] = 0x0D,
+        ["return"] = 0x0D,
         ["shift"] = 0x10,
         ["lshift"] = 0xA0,
         ["rshift"] = 0xA1,

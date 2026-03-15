@@ -222,6 +222,21 @@ internal sealed class DevChecks
         var tools = client.ListToolsAsync(cancellationToken: cancellationToken).GetAwaiter().GetResult();
         Assert(tools.Any(tool => string.Equals(tool.Name, "window_list", StringComparison.Ordinal)), $"MCP {transportName} tools/list should include window_list.");
         Assert(tools.Any(tool => string.Equals(tool.Name, "version", StringComparison.Ordinal)), $"MCP {transportName} tools/list should include version.");
+        Assert(tools.Any(tool => string.Equals(tool.Name, "screens", StringComparison.Ordinal)), $"MCP {transportName} tools/list should include screens.");
+        Assert(!tools.Any(tool => string.Equals(tool.Name, "image_info", StringComparison.Ordinal)), $"MCP {transportName} tools/list should not expose image_info alias.");
+        Assert(!tools.Any(tool => string.Equals(tool.Name, "screenshot_info", StringComparison.Ordinal)), $"MCP {transportName} tools/list should not expose screenshot_info alias.");
+        var seeUi = tools.SingleOrDefault(tool => string.Equals(tool.Name, "see_ui", StringComparison.Ordinal));
+        Assert(seeUi is not null, $"MCP {transportName} tools/list should include see_ui.");
+        var seeUiDescription = seeUi?.Description ?? string.Empty;
+        Assert(seeUiDescription.Contains("preferred first tool", StringComparison.OrdinalIgnoreCase), $"MCP {transportName} see_ui description should steer clients to inspect UI first.");
+        Assert(seeUiDescription.Contains("see the screen", StringComparison.OrdinalIgnoreCase), $"MCP {transportName} see_ui description should explicitly cover screen-inspection requests.");
+
+        var captureImage = tools.SingleOrDefault(tool => string.Equals(tool.Name, "capture_image", StringComparison.Ordinal));
+        Assert(captureImage is not null, $"MCP {transportName} tools/list should include capture_image.");
+        var captureImageDescription = captureImage?.Description ?? string.Empty;
+        Assert(captureImageDescription.Contains("only after see_ui", StringComparison.OrdinalIgnoreCase), $"MCP {transportName} capture_image description should position screenshots as a follow-up tool.");
+        Assert(captureImageDescription.Contains("Do not use this as the first tool", StringComparison.OrdinalIgnoreCase), $"MCP {transportName} capture_image description should discourage first-use for screen understanding.");
+        Assert(!tools.Any(tool => string.Equals(tool.Name, "capture_screenshot", StringComparison.Ordinal)), $"MCP {transportName} tools/list should not expose capture_screenshot alias.");
 
         var versionResult = client.CallToolAsync("version", arguments: null, progress: null, options: null, cancellationToken: cancellationToken).GetAwaiter().GetResult();
         Assert(!versionResult.IsError.GetValueOrDefault(), $"MCP {transportName} version tool should succeed.");
