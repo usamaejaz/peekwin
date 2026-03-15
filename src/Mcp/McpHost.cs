@@ -65,12 +65,11 @@ public static class McpHost
             "  --stateless                    disable MCP session state across requests",
             string.Empty,
             "Tools:",
-            "  version, get_help",
             "  window_list, window_focus, window_inspect, window_move, window_resize, window_close, window_minimize, window_maximize, window_restore",
-            "  app_list, desktop_list, desktop_current, desktop_switch, screens, image_info, screenshot_info",
+            "  app_list, desktop_list, desktop_current, desktop_switch, screen_layout",
             "  pointer_move, click, drag, scroll, mouse_down, mouse_up, ref_click, ref_focus",
             "  type_text, paste_text, press_key, send_hotkey, send_keys, see_ui, hold_input",
-            "  capture_image, capture_screenshot, wait_window, wait_ref, wait_text, clipboard_get, clipboard_set, sleep"
+            "  capture_image, wait_window, wait_ref, wait_text, clipboard_get, clipboard_set, sleep"
         });
 
     private static bool IsHelpRequest(IReadOnlyList<string> args)

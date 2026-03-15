@@ -15,174 +15,149 @@ public sealed class PeekWinMcpTools
         _commandRunner = commandRunner;
     }
 
-    [McpServerTool(Name = "version", ReadOnly = true)]
-    [Description("Return the peekwin version.")]
-    public Task<CommandRunResult> Version(CancellationToken cancellationToken)
-        => Run(cancellationToken, "version");
-
-    [McpServerTool(Name = "get_help", ReadOnly = true)]
-    [Description("Return top-level or command-specific peekwin help text.")]
-    public Task<CommandRunResult> GetHelp(
-        [Description("Optional command path. Example: [\"wait\", \"ref\"] to run `peekwin wait ref --help`.")]
-        string[]? commandPath,
-        CancellationToken cancellationToken)
-    {
-        string[] args;
-        if (commandPath is { Length: > 0 })
-        {
-            args = [.. commandPath, "--help"];
-        }
-        else
-        {
-            args = ["--help"];
-        }
-
-        return Run(cancellationToken, args);
-    }
-
     [McpServerTool(Name = "window_list", ReadOnly = true)]
     [Description("List windows, optionally including hidden ones and filtering by app or title.")]
-    public Task<CommandRunResult> WindowList(bool all, string? app, string? title, CancellationToken cancellationToken)
+    public Task<object?> WindowList(bool all, string? app, string? title, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "window", "list", Flag("all", all), Opt("app", app), Opt("title", title));
 
     [McpServerTool(Name = "window_focus")]
     [Description("Focus a window by app, title, handle, or window alias.")]
-    public Task<CommandRunResult> WindowFocus(string? app, string? title, string? handle, string? window, CancellationToken cancellationToken)
+    public Task<object?> WindowFocus(string? app, string? title, string? handle, string? window, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "window", "focus", WindowTarget(app, title, handle, window));
 
     [McpServerTool(Name = "window_inspect", ReadOnly = true)]
     [Description("Inspect a window by app, title, handle, or window alias.")]
-    public Task<CommandRunResult> WindowInspect(string? app, string? title, string? handle, string? window, CancellationToken cancellationToken)
+    public Task<object?> WindowInspect(string? app, string? title, string? handle, string? window, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "window", "inspect", WindowTarget(app, title, handle, window));
 
     [McpServerTool(Name = "window_move")]
     [Description("Move a window to an absolute screen position.")]
-    public Task<CommandRunResult> WindowMove(int x, int y, string? app, string? title, string? handle, string? window, CancellationToken cancellationToken)
+    public Task<object?> WindowMove(int x, int y, string? app, string? title, string? handle, string? window, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "window", "move", WindowTarget(app, title, handle, window), Opt("x", x), Opt("y", y));
 
     [McpServerTool(Name = "window_resize")]
     [Description("Resize a window to the requested width and height.")]
-    public Task<CommandRunResult> WindowResize(int width, int height, string? app, string? title, string? handle, string? window, CancellationToken cancellationToken)
+    public Task<object?> WindowResize(int width, int height, string? app, string? title, string? handle, string? window, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "window", "resize", WindowTarget(app, title, handle, window), Opt("width", width), Opt("height", height));
 
     [McpServerTool(Name = "window_close")]
     [Description("Close a target window.")]
-    public Task<CommandRunResult> WindowClose(string? app, string? title, string? handle, string? window, CancellationToken cancellationToken)
+    public Task<object?> WindowClose(string? app, string? title, string? handle, string? window, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "window", "close", WindowTarget(app, title, handle, window));
 
     [McpServerTool(Name = "window_minimize")]
     [Description("Minimize a target window.")]
-    public Task<CommandRunResult> WindowMinimize(string? app, string? title, string? handle, string? window, CancellationToken cancellationToken)
+    public Task<object?> WindowMinimize(string? app, string? title, string? handle, string? window, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "window", "minimize", WindowTarget(app, title, handle, window));
 
     [McpServerTool(Name = "window_maximize")]
     [Description("Maximize a target window.")]
-    public Task<CommandRunResult> WindowMaximize(string? app, string? title, string? handle, string? window, CancellationToken cancellationToken)
+    public Task<object?> WindowMaximize(string? app, string? title, string? handle, string? window, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "window", "maximize", WindowTarget(app, title, handle, window));
 
     [McpServerTool(Name = "window_restore")]
     [Description("Restore a minimized or maximized window.")]
-    public Task<CommandRunResult> WindowRestore(string? app, string? title, string? handle, string? window, CancellationToken cancellationToken)
+    public Task<object?> WindowRestore(string? app, string? title, string? handle, string? window, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "window", "restore", WindowTarget(app, title, handle, window));
 
     [McpServerTool(Name = "app_list", ReadOnly = true)]
     [Description("List apps grouped by process name.")]
-    public Task<CommandRunResult> AppList(string? name, CancellationToken cancellationToken)
+    public Task<object?> AppList(string? name, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "app", "list", Opt("name", name));
 
     [McpServerTool(Name = "desktop_list", ReadOnly = true)]
     [Description("List virtual desktops.")]
-    public Task<CommandRunResult> DesktopList(CancellationToken cancellationToken)
+    public Task<object?> DesktopList(CancellationToken cancellationToken)
         => RunJson(cancellationToken, "desktop", "list");
 
     [McpServerTool(Name = "desktop_current", ReadOnly = true)]
     [Description("Return the current virtual desktop.")]
-    public Task<CommandRunResult> DesktopCurrent(CancellationToken cancellationToken)
+    public Task<object?> DesktopCurrent(CancellationToken cancellationToken)
         => RunJson(cancellationToken, "desktop", "current");
 
     [McpServerTool(Name = "desktop_switch")]
     [Description("Switch to a virtual desktop by index.")]
-    public Task<CommandRunResult> DesktopSwitch(int index, int? delayMs, CancellationToken cancellationToken)
+    public Task<object?> DesktopSwitch(int index, int? delayMs, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "desktop", "switch", Opt("index", index), Opt("delay-ms", delayMs));
 
-    [McpServerTool(Name = "screens", ReadOnly = true)]
-    [Description("Return monitor layout information for screen targeting and coordinate planning. Do not use this to understand UI contents or read what is on screen.")]
-    public Task<CommandRunResult> Screens(CancellationToken cancellationToken)
+    [McpServerTool(Name = "screen_layout", ReadOnly = true)]
+    [Description("Return monitor layout and bounds for coordinate planning. Not for UI inspection.")]
+    public Task<object?> Screens(CancellationToken cancellationToken)
         => RunJson(cancellationToken, "screens");
 
     [McpServerTool(Name = "pointer_move")]
     [Description("Move the mouse pointer, optionally relative to a target.")]
-    public Task<CommandRunResult> PointerMove(int? x, int? y, int? screen, string? app, string? title, string? handle, string? window, string? reference, bool focus, int? durationMs, int? steps, CancellationToken cancellationToken)
+    public Task<object?> PointerMove(int? x, int? y, int? screen, string? app, string? title, string? handle, string? window, string? reference, bool focus, int? durationMs, int? steps, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "move", Point(x, y), PointerTarget(screen, app, title, handle, window, reference), Flag("focus", focus), Opt("duration-ms", durationMs), Opt("steps", steps));
 
     [McpServerTool(Name = "click")]
     [Description("Click the mouse, optionally at a point relative to a target.")]
-    public Task<CommandRunResult> Click(int? x, int? y, int? screen, string? app, string? title, string? handle, string? window, string? reference, bool focus, string? button, bool @double, int? delayMs, CancellationToken cancellationToken)
+    public Task<object?> Click(int? x, int? y, int? screen, string? app, string? title, string? handle, string? window, string? reference, bool focus, string? button, bool @double, int? delayMs, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "click", Point(x, y), PointerTarget(screen, app, title, handle, window, reference), Flag("focus", focus), Opt("button", button), Flag("double", @double), Opt("delay-ms", delayMs));
 
     [McpServerTool(Name = "drag")]
     [Description("Drag from one point to another, optionally relative to a target.")]
-    public Task<CommandRunResult> Drag(int? x, int? y, int toX, int toY, int? screen, string? app, string? title, string? handle, string? window, string? reference, bool focus, string? button, int? durationMs, int? steps, CancellationToken cancellationToken)
+    public Task<object?> Drag(int? x, int? y, int toX, int toY, int? screen, string? app, string? title, string? handle, string? window, string? reference, bool focus, string? button, int? durationMs, int? steps, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "drag", Point(x, y), PointerTarget(screen, app, title, handle, window, reference), Opt("to-x", toX), Opt("to-y", toY), Flag("focus", focus), Opt("button", button), Opt("duration-ms", durationMs), Opt("steps", steps));
 
     [McpServerTool(Name = "scroll")]
     [Description("Scroll vertically and/or horizontally, optionally relative to a target.")]
-    public Task<CommandRunResult> Scroll(int? delta, int? deltaX, int? x, int? y, int? screen, string? app, string? title, string? handle, string? window, string? reference, bool focus, CancellationToken cancellationToken)
+    public Task<object?> Scroll(int? delta, int? deltaX, int? x, int? y, int? screen, string? app, string? title, string? handle, string? window, string? reference, bool focus, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "scroll", Point(x, y), PointerTarget(screen, app, title, handle, window, reference), Opt("delta", delta), Opt("delta-x", deltaX), Flag("focus", focus));
 
     [McpServerTool(Name = "mouse_down")]
     [Description("Press a mouse button, optionally at a target point.")]
-    public Task<CommandRunResult> MouseDown(string? button, int? x, int? y, int? screen, string? app, string? title, string? handle, string? window, string? reference, bool focus, CancellationToken cancellationToken)
+    public Task<object?> MouseDown(string? button, int? x, int? y, int? screen, string? app, string? title, string? handle, string? window, string? reference, bool focus, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "mouse", "down", Opt("button", button), Point(x, y), PointerTarget(screen, app, title, handle, window, reference), Flag("focus", focus));
 
     [McpServerTool(Name = "mouse_up")]
     [Description("Release a mouse button, optionally at a target point.")]
-    public Task<CommandRunResult> MouseUp(string? button, int? x, int? y, int? screen, string? app, string? title, string? handle, string? window, string? reference, bool focus, CancellationToken cancellationToken)
+    public Task<object?> MouseUp(string? button, int? x, int? y, int? screen, string? app, string? title, string? handle, string? window, string? reference, bool focus, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "mouse", "up", Opt("button", button), Point(x, y), PointerTarget(screen, app, title, handle, window, reference), Flag("focus", focus));
 
     [McpServerTool(Name = "ref_click")]
-    [Description("Activate a saved UI ref, preferring UI Automation invoke.")]
-    public Task<CommandRunResult> RefClick(string reference, CancellationToken cancellationToken)
+    [Description("Activate a saved UI ref, using UI Automation invoke when available.")]
+    public Task<object?> RefClick(string reference, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "ref", "click", Opt("ref", reference));
 
     [McpServerTool(Name = "ref_focus")]
     [Description("Focus a saved UI ref.")]
-    public Task<CommandRunResult> RefFocus(string reference, CancellationToken cancellationToken)
+    public Task<object?> RefFocus(string reference, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "ref", "focus", Opt("ref", reference));
 
     [McpServerTool(Name = "type_text")]
-    [Description("Type or paste text into a target window or saved ref.")]
-    public Task<CommandRunResult> TypeText(string text, string? method, int? delayMs, string? app, string? title, string? handle, string? window, string? reference, CancellationToken cancellationToken)
+    [Description("Type or paste text into a target window or saved UI ref.")]
+    public Task<object?> TypeText(string text, string? method, int? delayMs, string? app, string? title, string? handle, string? window, string? reference, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "type", Opt("text", text), Opt("method", method), Opt("delay-ms", delayMs), KeyboardTarget(app, title, handle, window, reference));
 
     [McpServerTool(Name = "paste_text")]
     [Description("Paste text into a target window or saved ref.")]
-    public Task<CommandRunResult> PasteText(string text, int? delayMs, string? app, string? title, string? handle, string? window, string? reference, CancellationToken cancellationToken)
+    public Task<object?> PasteText(string text, int? delayMs, string? app, string? title, string? handle, string? window, string? reference, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "paste", Opt("text", text), Opt("delay-ms", delayMs), KeyboardTarget(app, title, handle, window, reference));
 
     [McpServerTool(Name = "press_key")]
     [Description("Press a single key one or more times in a target window or saved ref.")]
-    public Task<CommandRunResult> PressKey(string key, int? repeat, int? delayMs, string? app, string? title, string? handle, string? window, string? reference, CancellationToken cancellationToken)
+    public Task<object?> PressKey(string key, int? repeat, int? delayMs, string? app, string? title, string? handle, string? window, string? reference, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "press", Opt("key", key), Opt("repeat", repeat), Opt("delay-ms", delayMs), KeyboardTarget(app, title, handle, window, reference));
 
     [McpServerTool(Name = "send_hotkey")]
     [Description("Send a hotkey chord like ctrl+s to a target window or saved ref.")]
-    public Task<CommandRunResult> SendHotkey(string[] keys, string? app, string? title, string? handle, string? window, string? reference, CancellationToken cancellationToken)
+    public Task<object?> SendHotkey(string[] keys, string? app, string? title, string? handle, string? window, string? reference, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "hotkey", Opt("keys", JoinCsv(keys)), KeyboardTarget(app, title, handle, window, reference));
 
     [McpServerTool(Name = "send_keys")]
-    [Description("Send a sequence of key steps such as tap:tab or sleep:100.")]
-    public Task<CommandRunResult> SendKeys(string[] steps, int? delayMs, string? app, string? title, string? handle, string? window, string? reference, CancellationToken cancellationToken)
+    [Description("Send a scripted key sequence such as tap:tab or sleep:100.")]
+    public Task<object?> SendKeys(string[] steps, int? delayMs, string? app, string? title, string? handle, string? window, string? reference, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "keys", Opt("steps", JoinCsv(steps)), Opt("delay-ms", delayMs), KeyboardTarget(app, title, handle, window, reference));
 
     [McpServerTool(Name = "see_ui", ReadOnly = true)]
-    [Description("Inspect the UI Automation tree for the foreground or a targeted window. This is the preferred first tool when the user asks to see the screen, inspect what is on screen, understand visible UI, or find actionable controls. Prefer this before image capture.")]
-    public Task<CommandRunResult> SeeUi(string? app, string? title, string? handle, string? window, bool? deep, int? maxDepth, string? role, string? name, bool all, CancellationToken cancellationToken)
+    [Description("Inspect the UI Automation tree for the foreground or a targeted window. Use this first to understand visible UI and find controls.")]
+    public Task<object?> SeeUi(string? app, string? title, string? handle, string? window, bool? deep, int? maxDepth, string? role, string? name, bool all, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "see", WindowTarget(app, title, handle, window), Flag("deep", deep ?? true), Opt("max-depth", maxDepth), Opt("role", role), Opt("name", name), Flag("all", all));
 
     [McpServerTool(Name = "hold_input")]
     [Description("Hold keys or a mouse button for a duration.")]
-    public Task<CommandRunResult> HoldInput(string[]? keys, string? button, int? durationMs, int? x, int? y, int? screen, string? app, string? title, string? handle, string? window, string? reference, bool focus, CancellationToken cancellationToken)
+    public Task<object?> HoldInput(string[]? keys, string? button, int? durationMs, int? x, int? y, int? screen, string? app, string? title, string? handle, string? window, string? reference, bool focus, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "hold",
             Opt("keys", JoinCsv(keys)),
             Opt("button", button),
@@ -192,49 +167,73 @@ public sealed class PeekWinMcpTools
             Flag("focus", focus));
 
     [McpServerTool(Name = "capture_image")]
-    [Description("Capture a raw image file of a screen, window, or saved ref. Use this only after see_ui when you specifically need pixels, visual verification, or a screenshot artifact. Do not use this as the first tool just to understand what is on screen.")]
-    public Task<CommandRunResult> CaptureImage(string? output, int? screen, string? app, string? title, string? handle, string? window, string? reference, bool focus, CancellationToken cancellationToken)
+    [Description("Capture an image of a screen, window, or saved UI ref. Use this only when pixels or visual verification are needed.")]
+    public Task<object?> CaptureImage(string? output, int? screen, string? app, string? title, string? handle, string? window, string? reference, bool focus, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "image", Opt("output", output), PointerTarget(screen, app, title, handle, window, reference), Flag("focus", focus));
 
     [McpServerTool(Name = "wait_window")]
     [Description("Wait for a window to reach a state like visible, focused, or gone.")]
-    public Task<CommandRunResult> WaitWindow(string state, string? app, string? title, string? handle, string? window, int? timeoutMs, int? intervalMs, CancellationToken cancellationToken)
+    public Task<object?> WaitWindow(string state, string? app, string? title, string? handle, string? window, int? timeoutMs, int? intervalMs, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "wait", "window", WindowTarget(app, title, handle, window), Opt("state", state), WaitTiming(timeoutMs, intervalMs));
 
     [McpServerTool(Name = "wait_ref")]
     [Description("Wait for a saved UI ref to reach a state like visible or enabled.")]
-    public Task<CommandRunResult> WaitRef(string reference, string state, int? timeoutMs, int? intervalMs, CancellationToken cancellationToken)
+    public Task<object?> WaitRef(string reference, string state, int? timeoutMs, int? intervalMs, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "wait", "ref", Opt("ref", reference), Opt("state", state), WaitTiming(timeoutMs, intervalMs));
 
     [McpServerTool(Name = "wait_text")]
     [Description("Wait until window title text or a saved ref name contains the requested text.")]
-    public Task<CommandRunResult> WaitText(string contains, string? app, string? title, string? handle, string? window, string? reference, int? timeoutMs, int? intervalMs, CancellationToken cancellationToken)
+    public Task<object?> WaitText(string contains, string? app, string? title, string? handle, string? window, string? reference, int? timeoutMs, int? intervalMs, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "wait", "text", KeyboardTarget(app, title, handle, window, reference), Opt("contains", contains), WaitTiming(timeoutMs, intervalMs));
 
     [McpServerTool(Name = "clipboard_get", ReadOnly = true)]
     [Description("Get current clipboard text.")]
-    public Task<CommandRunResult> ClipboardGet(CancellationToken cancellationToken)
+    public Task<object?> ClipboardGet(CancellationToken cancellationToken)
         => RunJson(cancellationToken, "clipboard", "get");
 
     [McpServerTool(Name = "clipboard_set")]
     [Description("Set current clipboard text.")]
-    public Task<CommandRunResult> ClipboardSet(string text, CancellationToken cancellationToken)
+    public Task<object?> ClipboardSet(string text, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "clipboard", "set", Opt("text", text));
 
     [McpServerTool(Name = "sleep")]
     [Description("Sleep for the requested duration in milliseconds.")]
-    public Task<CommandRunResult> Sleep(int durationMs, CancellationToken cancellationToken)
+    public Task<object?> Sleep(int durationMs, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "sleep", Opt("duration-ms", durationMs));
 
-    private Task<CommandRunResult> RunJson(CancellationToken cancellationToken, params object?[] parts)
+    private async Task<object?> RunJson(CancellationToken cancellationToken, params object?[] parts)
     {
         var args = Flatten(parts);
         args.Add("--json");
-        return _commandRunner.RunAsync(args, cancellationToken);
+        var result = await _commandRunner.RunAsync(args, cancellationToken).ConfigureAwait(false);
+        return Simplify(result);
     }
 
-    private Task<CommandRunResult> Run(CancellationToken cancellationToken, params object?[] parts)
-        => _commandRunner.RunAsync(Flatten(parts), cancellationToken);
+    private static object Simplify(CommandRunResult result)
+    {
+        if (result.Json is not null)
+        {
+            return result.Json;
+        }
+
+        var stdout = result.Stdout.Trim();
+        if (!string.IsNullOrWhiteSpace(stdout))
+        {
+            return stdout;
+        }
+
+        var stderr = result.Stderr.Trim();
+        if (!string.IsNullOrWhiteSpace(stderr))
+        {
+            return result.Success
+                ? stderr
+                : new { success = false, error = stderr };
+        }
+
+        return result.Success
+            ? "ok"
+            : new { success = false, error = "Command failed." };
+    }
 
     private static List<string> Flatten(params object?[] parts)
     {
