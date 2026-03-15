@@ -51,20 +51,28 @@ public sealed class InputService
 
     public async Task MoveMouseAsync(int x, int y, int durationMs, int steps)
     {
-        if (durationMs <= 0)
+        var start = GetCursorPosition();
+        var distance = Math.Sqrt(Math.Pow(x - start.X, 2) + Math.Pow(y - start.Y, 2));
+        if (distance < 1)
         {
             MoveMouse(x, y);
             return;
         }
 
-        var start = GetCursorPosition();
+        if (durationMs <= 0)
+        {
+            durationMs = ResolveAutoMoveDuration(distance);
+        }
+
         steps = Math.Max(1, steps);
         var stepDelay = Math.Max(1, durationMs / steps);
 
         for (var step = 1; step <= steps; step++)
         {
-            var nextX = start.X + (int)Math.Round((x - start.X) * (step / (double)steps), MidpointRounding.AwayFromZero);
-            var nextY = start.Y + (int)Math.Round((y - start.Y) * (step / (double)steps), MidpointRounding.AwayFromZero);
+            var progress = step / (double)steps;
+            var easedProgress = EaseInOut(progress);
+            var nextX = start.X + (int)Math.Round((x - start.X) * easedProgress, MidpointRounding.AwayFromZero);
+            var nextY = start.Y + (int)Math.Round((y - start.Y) * easedProgress, MidpointRounding.AwayFromZero);
             MoveMouse(nextX, nextY);
 
             if (step < steps)
@@ -82,6 +90,14 @@ public sealed class InputService
         }
 
         return (point.X, point.Y);
+    }
+
+    public (int DurationMs, int Steps) ResolveAutoMoveProfile(int fromX, int fromY, int toX, int toY, int? requestedDurationMs, int? requestedSteps)
+    {
+        var distance = Math.Sqrt(Math.Pow(toX - fromX, 2) + Math.Pow(toY - fromY, 2));
+        var durationMs = requestedDurationMs ?? ResolveAutoMoveDuration(distance);
+        var steps = requestedSteps ?? ResolveAutoMoveSteps(distance);
+        return (durationMs, Math.Max(1, steps));
     }
 
     public async Task DragAsync(int startX, int startY, int endX, int endY, MouseButton button, int durationMs, int steps)
@@ -110,6 +126,15 @@ public sealed class InputService
             MouseUp(button);
         }
     }
+
+    private static int ResolveAutoMoveDuration(double distance)
+        => Math.Clamp((int)Math.Round(140 + (distance * 0.55), MidpointRounding.AwayFromZero), 180, 700);
+
+    private static int ResolveAutoMoveSteps(double distance)
+        => Math.Clamp((int)Math.Round(distance / 35, MidpointRounding.AwayFromZero), 12, 30);
+
+    private static double EaseInOut(double progress)
+        => progress * progress * (3 - (2 * progress));
 
     public async Task TypeTextAsync(string text, int delayMs)
     {
