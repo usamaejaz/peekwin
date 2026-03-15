@@ -23,6 +23,7 @@ internal sealed class DevChecks
             VerifyVersionMetadata(repoRoot);
             VerifySnapshotStore(repoRoot);
             VerifyCommandRunner();
+            VerifyPointerMoveProfiles();
             VerifyMcpHelp();
             VerifyMcpRejectsUnexpectedArgument(repoRoot);
             VerifyMcpStdioRoundTrip(repoRoot);
@@ -108,6 +109,18 @@ internal sealed class DevChecks
         var helpResult = runner.RunAsync(["wait", "ref", "--help"]).GetAwaiter().GetResult();
         Assert(helpResult.Success, "CommandRunner should report success for help.");
         Assert(helpResult.Stdout.Contains("peekwin wait ref --ref <id>", StringComparison.Ordinal), "CommandRunner should capture command help text.");
+    }
+
+    private static void VerifyPointerMoveProfiles()
+    {
+        var inputService = new InputService();
+        var autoProfile = inputService.ResolveAutoMoveProfile(0, 0, 420, 180, null, null);
+        Assert(autoProfile.DurationMs > 0, "Auto pointer move should compute a positive duration.");
+        Assert(autoProfile.Steps >= 12, "Auto pointer move should compute multiple steps.");
+
+        var explicitZero = inputService.ResolveAutoMoveProfile(0, 0, 420, 180, 0, null);
+        Assert(explicitZero.DurationMs == 0, "Explicit pointer move duration 0 should remain immediate.");
+        Assert(explicitZero.Steps >= 12, "Explicit zero duration should not break the step profile.");
     }
 
     private static void VerifyMcpHelp()
