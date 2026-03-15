@@ -51,6 +51,12 @@ public sealed class InputService
 
     public async Task MoveMouseAsync(int x, int y, int durationMs, int steps)
     {
+        if (durationMs == 0)
+        {
+            MoveMouse(x, y);
+            return;
+        }
+
         var start = GetCursorPosition();
         var distance = Math.Sqrt(Math.Pow(x - start.X, 2) + Math.Pow(y - start.Y, 2));
         if (distance < 1)
@@ -59,7 +65,7 @@ public sealed class InputService
             return;
         }
 
-        if (durationMs <= 0)
+        if (durationMs < 0)
         {
             durationMs = ResolveAutoMoveDuration(distance);
         }
