@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Text.Json;
 using ModelContextProtocol.Server;
 using PeekWin.Cli;
+using PeekWin.Infrastructure;
 
 namespace PeekWin.Mcp;
 
@@ -102,9 +103,9 @@ public sealed class PeekWinMcpTools
         => RunJson(cancellationToken, "drag", Point(x, y), PointerTarget(screen, app, title, handle, window, reference), Opt("to-x", toX), Opt("to-y", toY), Flag("focus", focus), Opt("button", button));
 
     [McpServerTool(Name = "scroll")]
-    [Description("Scroll vertically and/or horizontally, optionally relative to a target.")]
-    public Task<object?> Scroll(int? delta, int? deltaX, int? x, int? y, int? screen, string? app, string? title, string? handle, string? window, string? reference, bool focus, CancellationToken cancellationToken)
-        => RunJson(cancellationToken, "scroll", Point(x, y), PointerTarget(screen, app, title, handle, window, reference), Opt("delta", delta), Opt("delta-x", deltaX), Flag("focus", focus));
+    [Description("Scroll by wheel ticks vertically and/or horizontally, optionally relative to a target.")]
+    public Task<object?> Scroll(int? ticks, int? ticksX, int? x, int? y, int? screen, string? app, string? title, string? handle, string? window, string? reference, bool focus, CancellationToken cancellationToken)
+        => RunJson(cancellationToken, "scroll", Point(x, y), PointerTarget(screen, app, title, handle, window, reference), Opt("delta", ScaleWheelTicks(ticks)), Opt("delta-x", ScaleWheelTicks(ticksX)), Flag("focus", focus));
 
     [McpServerTool(Name = "mouse_down")]
     [Description("Press a mouse button, optionally at a target point.")]
@@ -293,6 +294,8 @@ public sealed class PeekWinMcpTools
             Opt("window", window),
             Opt("ref", reference)
         }.SelectMany(x => x);
+
+    private static int? ScaleWheelTicks(int? ticks) => ticks is null ? null : checked(ticks.Value * NativeMethods.WHEEL_DELTA);
 
     private static IEnumerable<string?> Point(int? x, int? y)
         => new[] { Opt("x", x), Opt("y", y) }.SelectMany(x => x);

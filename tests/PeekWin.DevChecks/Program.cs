@@ -243,6 +243,14 @@ internal sealed class DevChecks
         Assert(seeUiDescription.Contains("Use this first", StringComparison.OrdinalIgnoreCase), $"MCP {transportName} see_ui description should steer clients to inspect UI first.");
         Assert(seeUiDescription.Contains("find controls", StringComparison.OrdinalIgnoreCase), $"MCP {transportName} see_ui description should emphasize control discovery.");
 
+        var scroll = tools.SingleOrDefault(tool => string.Equals(tool.Name, "scroll", StringComparison.Ordinal));
+        Assert(scroll is not null, $"MCP {transportName} tools/list should include scroll.");
+        var scrollSchema = JsonSerializer.Serialize(scroll!.JsonSchema);
+        Assert(scrollSchema.Contains("\"ticks\"", StringComparison.Ordinal), $"MCP {transportName} scroll schema should expose ticks.");
+        Assert(scrollSchema.Contains("\"ticksX\"", StringComparison.Ordinal), $"MCP {transportName} scroll schema should expose ticksX.");
+        Assert(!scrollSchema.Contains("\"delta\"", StringComparison.Ordinal), $"MCP {transportName} scroll schema should not expose delta.");
+        Assert(!scrollSchema.Contains("\"deltaX\"", StringComparison.Ordinal), $"MCP {transportName} scroll schema should not expose deltaX.");
+
         var captureImage = tools.SingleOrDefault(tool => string.Equals(tool.Name, "capture_image", StringComparison.Ordinal));
         Assert(captureImage is not null, $"MCP {transportName} tools/list should include capture_image.");
         var captureImageDescription = captureImage?.Description ?? string.Empty;
