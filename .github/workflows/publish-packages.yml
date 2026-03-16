@@ -150,13 +150,14 @@ jobs:
       - name: Submit winget package update
         shell: pwsh
         run: |
-          $submitArgs = @()
-          if ('${{ inputs.winget_submit }}' -eq 'true') {
-            $submitArgs += '-Submit'
+          $wingetArgs = @{
+            Version = "${{ needs.resolve_release.outputs.version }}"
+            Token = "$env:WINGET_CREATE_GITHUB_TOKEN"
+            WingetCreatePath = (Join-Path $env:RUNNER_TEMP 'wingetcreate.exe')
           }
 
-          .\scripts\publish-winget.ps1 `
-            -Version "${{ needs.resolve_release.outputs.version }}" `
-            -Token "$env:WINGET_CREATE_GITHUB_TOKEN" `
-            -WingetCreatePath (Join-Path $env:RUNNER_TEMP 'wingetcreate.exe') `
-            @submitArgs
+          if ('${{ inputs.winget_submit }}' -eq 'true') {
+            $wingetArgs.Submit = $true
+          }
+
+          .\scripts\publish-winget.ps1 @wingetArgs
