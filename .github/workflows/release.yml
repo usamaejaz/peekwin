@@ -236,9 +236,8 @@ jobs:
         run: |
           $targetPath = Join-Path $env:RUNNER_TEMP 'wingetcreate.exe'
           Invoke-WebRequest -Uri 'https://aka.ms/wingetcreate/latest' -OutFile $targetPath
-          & $targetPath version
-          if ($LASTEXITCODE -ne 0) {
-            throw "wingetcreate version failed with exit code $LASTEXITCODE."
+          if (-not (Test-Path $targetPath)) {
+            throw "wingetcreate download failed."
           }
 
       - name: Submit winget package update
