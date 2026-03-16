@@ -1,0 +1,162 @@
+name: Publish package managers
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Which package manager publisher to run.
+        required: true
+        default: both
+        type: choice
+        options:
+          - both
+          - chocolatey
+          - winget
+      winget_submit:
+        description: Submit the winget update after generating it.
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  resolve_release:
+    name: Resolve latest release
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+
+    steps:
+      - name: Resolve latest GitHub release
+        id: release
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $headers = @{
+            Authorization = "Bearer $env:GITHUB_TOKEN"
+            Accept = 'application/vnd.github+json'
+          }
+
+          $release = Invoke-RestMethod -Headers $headers -Uri "https://api.github.com/repos/${{ github.repository }}/releases/latest"
+          if ($null -eq $release -or [string]::IsNullOrWhiteSpace($release.tag_name)) {
+            throw "Latest GitHub release could not be resolved."
+          }
+
+          $tag = $release.tag_name.Trim()
+          if ($tag -notmatch '^v\d+\.\d+\.\d+$') {
+            throw "Latest GitHub release tag '$tag' is not in vX.Y.Z format."
+          }
+
+          $version = $tag.TrimStart('v')
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+  publish_chocolatey:
+    name: Publish Chocolatey package
+    if: ${{ inputs.target == 'both' || inputs.target == 'chocolatey' }}
+    runs-on: windows-latest
+    needs: resolve_release
+    env:
+      CHOCOLATEY_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate Chocolatey configuration
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace("$env:CHOCOLATEY_API_KEY")) {
+            throw "CHOCOLATEY_API_KEY is not configured."
+          }
+
+      - name: Build Chocolatey package
+        shell: pwsh
+        run: |
+          $version = "${{ needs.resolve_release.outputs.version }}"
+          $tag = "${{ needs.resolve_release.outputs.tag }}"
+          $repository = "${{ github.repository }}"
+          $checksum64Path = Join-Path $env:RUNNER_TEMP "peekwin-$tag-win-x64.exe.sha256"
+          $checksumArm64Path = Join-Path $env:RUNNER_TEMP "peekwin-$tag-win-arm64.exe.sha256"
+          $checksum64Url = "https://github.com/$repository/releases/download/$tag/peekwin-$tag-win-x64.exe.sha256"
+          $checksumArm64Url = "https://github.com/$repository/releases/download/$tag/peekwin-$tag-win-arm64.exe.sha256"
+          $url64 = "https://github.com/$repository/releases/download/$tag/peekwin-$tag-win-x64.exe"
+          $urlArm64 = "https://github.com/$repository/releases/download/$tag/peekwin-$tag-win-arm64.exe"
+
+          Invoke-WebRequest -Uri $checksum64Url -OutFile $checksum64Path
+          Invoke-WebRequest -Uri $checksumArm64Url -OutFile $checksumArm64Path
+
+          $checksum64 = ((Get-Content -Path $checksum64Path -Raw) -split '\s+')[0].Trim().ToLowerInvariant()
+          $checksumArm64 = ((Get-Content -Path $checksumArm64Path -Raw) -split '\s+')[0].Trim().ToLowerInvariant()
+
+          .\scripts\build-chocolatey-package.ps1 `
+            -Version $version `
+            -Url64 $url64 `
+            -Checksum64 $checksum64 `
+            -UrlArm64 $urlArm64 `
+            -ChecksumArm64 $checksumArm64
+
+      - name: Push Chocolatey package
+        shell: pwsh
+        run: |
+          $version = "${{ needs.resolve_release.outputs.version }}"
+          $packagePath = Join-Path $PWD "artifacts\chocolatey\peekwin.$version.nupkg"
+          if (-not (Test-Path $packagePath)) {
+            throw "Chocolatey package not found: $packagePath"
+          }
+
+          choco push $packagePath --source https://push.chocolatey.org/ --api-key "$env:CHOCOLATEY_API_KEY"
+          if ($LASTEXITCODE -ne 0) {
+            throw "choco push failed with exit code $LASTEXITCODE."
+          }
+
+  publish_winget:
+    name: Submit winget update
+    if: ${{ inputs.target == 'both' || inputs.target == 'winget' }}
+    runs-on: windows-latest
+    needs: resolve_release
+    env:
+      WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_CREATE_GITHUB_TOKEN }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate winget configuration
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace("$env:WINGET_CREATE_GITHUB_TOKEN")) {
+            throw "WINGET_CREATE_GITHUB_TOKEN is not configured."
+          }
+
+      - name: Set up .NET SDK for wingetcreate
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 6.0.x
+
+      - name: Download wingetcreate
+        shell: pwsh
+        run: |
+          $targetPath = Join-Path $env:RUNNER_TEMP 'wingetcreate.exe'
+          Invoke-WebRequest -Uri 'https://aka.ms/wingetcreate/latest' -OutFile $targetPath
+          if (-not (Test-Path $targetPath)) {
+            throw "wingetcreate download failed."
+          }
+
+      - name: Submit winget package update
+        shell: pwsh
+        run: |
+          $submitArgs = @()
+          if ('${{ inputs.winget_submit }}' -eq 'true') {
+            $submitArgs += '-Submit'
+          }
+
+          .\scripts\publish-winget.ps1 `
+            -Version "${{ needs.resolve_release.outputs.version }}" `
+            -Token "$env:WINGET_CREATE_GITHUB_TOKEN" `
+            -WingetCreatePath (Join-Path $env:RUNNER_TEMP 'wingetcreate.exe') `
+            @submitArgs
