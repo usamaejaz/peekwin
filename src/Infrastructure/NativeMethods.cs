@@ -13,6 +13,8 @@ internal static class NativeMethods
     internal const uint SWP_NOZORDER = 0x0004;
     internal const uint SWP_NOACTIVATE = 0x0010;
     internal const uint WM_CLOSE = 0x0010;
+    internal const uint WM_MOUSEWHEEL = 0x020A;
+    internal const uint WM_MOUSEHWHEEL = 0x020E;
     internal const int BI_RGB = 0;
     internal const uint DIB_RGB_COLORS = 0;
     internal const uint INPUT_MOUSE = 0;
@@ -100,6 +102,9 @@ internal static class NativeMethods
 
     [DllImport("user32.dll")]
     internal static extern bool GetCursorPos(out POINT point);
+
+    [DllImport("user32.dll")]
+    internal static extern nint WindowFromPoint(POINT point);
 
     [DllImport("user32.dll")]
     internal static extern bool GetWindowRect(nint hWnd, out RECT rect);
