@@ -943,8 +943,7 @@ public sealed class CommandShell
             defaultToCenterWhenTargeted: true,
             defaultToCursorWhenUnspecified: true);
 
-        _inputService.MoveMouse(point.X, point.Y);
-        _inputService.Scroll(verticalDelta, horizontalDelta);
+        _inputService.Scroll(verticalDelta, horizontalDelta, point.X, point.Y);
         WriteResult(
             command,
             CommandResult.Ok(

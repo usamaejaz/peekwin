@@ -340,8 +340,16 @@ public sealed class InputService
         SendMouse(button, false);
     }
 
-    public void Scroll(int verticalDelta, int horizontalDelta = 0)
+    public void Scroll(int verticalDelta, int horizontalDelta = 0, int? x = null, int? y = null)
     {
+        if (x is not null && y is not null)
+        {
+            MoveMouse(x.Value, y.Value);
+            if (TryDispatchWheelAtPoint(x.Value, y.Value, verticalDelta, horizontalDelta))
+            {
+                return;
+            }
+        }
         var inputs = new List<NativeMethods.INPUT>();
         if (verticalDelta != 0)
         {
@@ -360,6 +368,39 @@ public sealed class InputService
 
         Send(inputs.ToArray());
     }
+
+    private static bool TryDispatchWheelAtPoint(int x, int y, int verticalDelta, int horizontalDelta)
+    {
+        if (verticalDelta == 0 && horizontalDelta == 0)
+        {
+            return true;
+        }
+
+        var hwnd = NativeMethods.WindowFromPoint(new NativeMethods.POINT { X = x, Y = y });
+        if (hwnd == nint.Zero)
+        {
+            return false;
+        }
+
+        var lParam = PackPoint(x, y);
+        if (verticalDelta != 0 && !NativeMethods.PostMessage(hwnd, NativeMethods.WM_MOUSEWHEEL, PackWheelDelta(verticalDelta), lParam))
+        {
+            return false;
+        }
+
+        if (horizontalDelta != 0 && !NativeMethods.PostMessage(hwnd, NativeMethods.WM_MOUSEHWHEEL, PackWheelDelta(horizontalDelta), lParam))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static nint PackWheelDelta(int delta)
+        => unchecked((nint)((ushort)0 | ((uint)(ushort)(short)delta << 16)));
+
+    private static nint PackPoint(int x, int y)
+        => unchecked((nint)((ushort)(short)x | ((uint)(ushort)(short)y << 16)));
 
     private static NativeMethods.INPUT CreateMouseInput(uint flags, uint mouseData)
         => new()
