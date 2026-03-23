@@ -124,7 +124,7 @@ internal sealed class DevChecks
                 defaultTimeout: TimeSpan.FromMilliseconds(150),
                 timeoutGrace: TimeSpan.FromMilliseconds(150));
             var timeoutStopwatch = Stopwatch.StartNew();
-            var timeoutResult = timeoutRunner.RunAsync(["sleep", "--duration-ms", "2000"]).GetAwaiter().GetResult();
+            var timeoutResult = timeoutRunner.RunAsync(["sleep", "2000"]).GetAwaiter().GetResult();
             timeoutStopwatch.Stop();
 
             Assert(!timeoutResult.Success, "ProcessCommandRunner should fail timed-out commands.");
