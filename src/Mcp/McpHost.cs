@@ -82,7 +82,7 @@ public static class McpHost
     {
         var builder = Host.CreateApplicationBuilder(args);
         builder.Logging.ClearProviders();
-        builder.Services.AddSingleton(_ => PeekWinRuntimeFactory.CreateCommandRunner());
+        builder.Services.AddSingleton<ICommandRunner>(_ => PeekWinRuntimeFactory.CreateMcpCommandRunner());
         builder.Services
             .AddMcpServer()
             .WithStdioServerTransport()
@@ -97,7 +97,7 @@ public static class McpHost
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
         builder.WebHost.UseUrls(options.Urls);
-        builder.Services.AddSingleton(_ => PeekWinRuntimeFactory.CreateCommandRunner());
+        builder.Services.AddSingleton<ICommandRunner>(_ => PeekWinRuntimeFactory.CreateMcpCommandRunner());
         builder.Services
             .AddMcpServer()
             .WithHttpTransport(transportOptions =>

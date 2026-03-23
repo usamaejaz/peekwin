@@ -10,9 +10,9 @@ namespace PeekWin.Mcp;
 [Description("Named MCP tools for the peekwin command surface.")]
 public sealed class PeekWinMcpTools
 {
-    private readonly CommandRunner _commandRunner;
+    private readonly ICommandRunner _commandRunner;
 
-    public PeekWinMcpTools(CommandRunner commandRunner)
+    public PeekWinMcpTools(ICommandRunner commandRunner)
     {
         _commandRunner = commandRunner;
     }

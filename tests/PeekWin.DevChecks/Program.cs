@@ -109,6 +109,12 @@ internal sealed class DevChecks
         var helpResult = runner.RunAsync(["wait", "ref", "--help"]).GetAwaiter().GetResult();
         Assert(helpResult.Success, "CommandRunner should report success for help.");
         Assert(helpResult.Stdout.Contains("peekwin wait ref --ref <id>", StringComparison.Ordinal), "CommandRunner should capture command help text.");
+
+        var processRunner = new ProcessCommandRunner("dotnet", [typeof(CommandShell).Assembly.Location]);
+        var processVersionResult = processRunner.RunAsync(["version"]).GetAwaiter().GetResult();
+        Assert(processVersionResult.Success, "ProcessCommandRunner should report success for version.");
+        Assert(string.IsNullOrWhiteSpace(processVersionResult.Stderr), "ProcessCommandRunner version should not write to stderr.");
+        Assert(!string.IsNullOrWhiteSpace(processVersionResult.Stdout), "ProcessCommandRunner version should capture stdout.");
     }
 
     private static void VerifyPointerMoveProfiles()

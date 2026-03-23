@@ -3,7 +3,7 @@ using System.Text.Json.Nodes;
 
 namespace PeekWin.Cli;
 
-public sealed class CommandRunner
+public sealed class CommandRunner : ICommandRunner
 {
     private readonly Func<CommandShell> _shellFactory;
     private readonly SemaphoreSlim _gate = new(1, 1);

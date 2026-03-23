@@ -8,9 +8,9 @@ namespace PeekWin.Services;
 
 public sealed class WindowService
 {
-    public IReadOnlyList<WindowInfo> ListWindows(bool includeHidden = true, string? appFilter = null, string? titleFilter = null)
+    public IReadOnlyList<WindowInfo> ListWindows(bool includeHidden = true, string? appFilter = null, string? titleFilter = null, bool includeDesktopLabel = true)
     {
-        var windows = EnumerateWindows();
+        var windows = EnumerateWindows(includeDesktopLabel);
 
         if (!includeHidden)
         {
@@ -35,7 +35,7 @@ public sealed class WindowService
     }
 
     public IReadOnlyList<AppInfo> ListApps()
-        => ListWindows(includeHidden: false)
+        => ListWindows(includeHidden: false, includeDesktopLabel: false)
             .GroupBy(window => window.ProcessName, StringComparer.OrdinalIgnoreCase)
             .Select(group => new AppInfo(
                 group.First().ProcessName,
@@ -54,7 +54,7 @@ public sealed class WindowService
             return null;
         }
 
-        return CreateWindowInfo(hwnd);
+        return CreateWindowInfo(hwnd, includeDesktopLabel: false);
     }
 
     public nint GetForegroundWindowHandle()
@@ -70,7 +70,7 @@ public sealed class WindowService
         => FindWindowMatch(null, appName);
 
     public WindowInfo? FindWindowMatch(string? title, string? appName)
-        => RankWindowMatches(ListWindows()
+        => RankWindowMatches(ListWindows(includeDesktopLabel: false)
             .Where(window => MatchesWindowFilter(window, title, appName)))
             .FirstOrDefault();
 
@@ -81,7 +81,7 @@ public sealed class WindowService
         => FindCapturableWindowMatch(null, appName);
 
     public WindowInfo? FindCapturableWindowMatch(string? title, string? appName)
-        => RankWindowMatchesForCapture(ListWindows()
+        => RankWindowMatchesForCapture(ListWindows(includeDesktopLabel: false)
             .Where(window => MatchesWindowFilter(window, title, appName)))
             .FirstOrDefault();
 
@@ -286,13 +286,13 @@ public sealed class WindowService
 
     public CommandResult RestoreWindowByTitle(string title) => ApplyWindowTitleAction(title, RestoreWindow);
 
-    private static List<WindowInfo> EnumerateWindows()
+    private static List<WindowInfo> EnumerateWindows(bool includeDesktopLabel)
     {
         var windows = new List<WindowInfo>();
 
         NativeMethods.EnumWindows((hwnd, _) =>
         {
-            var info = CreateWindowInfo(hwnd);
+            var info = CreateWindowInfo(hwnd, includeDesktopLabel);
             if (info is not null)
             {
                 windows.Add(info);
@@ -308,7 +308,7 @@ public sealed class WindowService
             .ToList();
     }
 
-    private static WindowInfo? CreateWindowInfo(nint hwnd)
+    private static WindowInfo? CreateWindowInfo(nint hwnd, bool includeDesktopLabel = true)
     {
         var title = GetWindowText(hwnd);
         if (string.IsNullOrWhiteSpace(title))
@@ -329,7 +329,7 @@ public sealed class WindowService
             NativeMethods.IsWindowVisible(hwnd),
             NativeMethods.IsIconic(hwnd),
             NativeMethods.IsZoomed(hwnd),
-            VirtualDesktopHelper.GetDesktopLabel(hwnd),
+            includeDesktopLabel ? VirtualDesktopHelper.GetDesktopLabel(hwnd) : "unknown",
             ToRectDto(rect));
     }
 
