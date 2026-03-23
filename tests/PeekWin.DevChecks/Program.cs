@@ -109,6 +109,28 @@ internal sealed class DevChecks
         var helpResult = runner.RunAsync(["wait", "ref", "--help"]).GetAwaiter().GetResult();
         Assert(helpResult.Success, "CommandRunner should report success for help.");
         Assert(helpResult.Stdout.Contains("peekwin wait ref --ref <id>", StringComparison.Ordinal), "CommandRunner should capture command help text.");
+
+        var processRunner = new ProcessCommandRunner("dotnet", [typeof(CommandShell).Assembly.Location]);
+        var processVersionResult = processRunner.RunAsync(["version"]).GetAwaiter().GetResult();
+        Assert(processVersionResult.Success, "ProcessCommandRunner should report success for version.");
+        Assert(string.IsNullOrWhiteSpace(processVersionResult.Stderr), "ProcessCommandRunner version should not write to stderr.");
+        Assert(!string.IsNullOrWhiteSpace(processVersionResult.Stdout), "ProcessCommandRunner version should capture stdout.");
+
+        if (OperatingSystem.IsWindows())
+        {
+            var timeoutRunner = new ProcessCommandRunner(
+                "dotnet",
+                [typeof(CommandShell).Assembly.Location],
+                defaultTimeout: TimeSpan.FromMilliseconds(150),
+                timeoutGrace: TimeSpan.FromMilliseconds(150));
+            var timeoutStopwatch = Stopwatch.StartNew();
+            var timeoutResult = timeoutRunner.RunAsync(["sleep", "2000"]).GetAwaiter().GetResult();
+            timeoutStopwatch.Stop();
+
+            Assert(!timeoutResult.Success, "ProcessCommandRunner should fail timed-out commands.");
+            Assert(timeoutResult.Stderr.Contains("timed out", StringComparison.OrdinalIgnoreCase), "Timed-out ProcessCommandRunner commands should explain the timeout.");
+            Assert(timeoutStopwatch.Elapsed < TimeSpan.FromSeconds(2), $"Timed-out ProcessCommandRunner commands should return promptly, took {timeoutStopwatch.Elapsed.TotalMilliseconds:0}ms.");
+        }
     }
 
     private static void VerifyPointerMoveProfiles()

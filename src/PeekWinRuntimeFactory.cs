@@ -26,4 +26,7 @@ public static class PeekWinRuntimeFactory
 
     public static CommandRunner CreateCommandRunner()
         => new(CreateCommandShell);
+
+    public static ICommandRunner CreateMcpCommandRunner()
+        => ProcessCommandRunner.CreateForCurrentProcess();
 }
