@@ -12,12 +12,26 @@ public sealed class ProcessCommandRunner : ICommandRunner
 
     private readonly string _fileName;
     private readonly IReadOnlyList<string> _prefixArguments;
+    private readonly TimeSpan _defaultTimeout;
+    private readonly TimeSpan _timeoutGrace;
 
-    public ProcessCommandRunner(string fileName, IReadOnlyList<string>? prefixArguments = null)
+    public ProcessCommandRunner(string fileName, IReadOnlyList<string>? prefixArguments = null, TimeSpan? defaultTimeout = null, TimeSpan? timeoutGrace = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
         _fileName = fileName;
         _prefixArguments = prefixArguments ?? [];
+        _defaultTimeout = defaultTimeout ?? DefaultTimeout;
+        _timeoutGrace = timeoutGrace ?? TimeoutGrace;
+
+        if (_defaultTimeout <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(defaultTimeout), "defaultTimeout must be positive.");
+        }
+
+        if (_timeoutGrace <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(timeoutGrace), "timeoutGrace must be positive.");
+        }
     }
 
     public static ProcessCommandRunner CreateForCurrentProcess()
@@ -44,7 +58,8 @@ public sealed class ProcessCommandRunner : ICommandRunner
         ArgumentNullException.ThrowIfNull(arguments);
 
         var args = arguments.ToArray();
-        using var timeoutSource = new CancellationTokenSource(ResolveTimeout(args));
+        var timeout = ResolveTimeout(args);
+        using var timeoutSource = new CancellationTokenSource(timeout);
         using var linkedSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutSource.Token);
 
         var startInfo = new ProcessStartInfo(_fileName)
@@ -91,20 +106,27 @@ public sealed class ProcessCommandRunner : ICommandRunner
         }
         catch (OperationCanceledException) when (timeoutSource.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
-            var stdoutText = await stdoutTask.ConfigureAwait(false);
-            var stderrText = await stderrTask.ConfigureAwait(false);
-            var timeoutMessage = $"MCP command timed out after {(int)ResolveTimeout(args).TotalMilliseconds}ms.";
-            stderrText = string.IsNullOrWhiteSpace(stderrText)
+            TryKill(process);
+            await WaitForExitOrGracePeriodAsync(process).ConfigureAwait(false);
+
+            var capturedOutput = await TryCaptureOutputWithinGraceAsync(stdoutTask, stderrTask).ConfigureAwait(false);
+            var timeoutMessage = $"MCP command timed out after {(int)timeout.TotalMilliseconds}ms.";
+            var stderrText = string.IsNullOrWhiteSpace(capturedOutput.Stderr)
                 ? timeoutMessage
-                : $"{stderrText.Trim()} {timeoutMessage}";
+                : $"{capturedOutput.Stderr.Trim()} {timeoutMessage}";
+
+            if (!capturedOutput.Completed)
+            {
+                stderrText = $"{stderrText} Output capture did not complete before the timeout grace period elapsed.";
+            }
 
             return new CommandRunResult(
                 args,
                 -1,
                 false,
-                stdoutText,
+                capturedOutput.Stdout,
                 stderrText,
-                TryParseJson(stdoutText));
+                TryParseJson(capturedOutput.Stdout));
         }
     }
 
@@ -115,20 +137,44 @@ public sealed class ProcessCommandRunner : ICommandRunner
             || fileName.Equals("dotnet.exe", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static TimeSpan ResolveTimeout(IReadOnlyList<string> args)
+    private TimeSpan ResolveTimeout(IReadOnlyList<string> args)
     {
-        var timeout = DefaultTimeout;
+        var timeout = _defaultTimeout;
 
         foreach (var optionName in new[] { "--timeout-ms", "--timeout", "--duration-ms" })
         {
             var value = TryReadIntOption(args, optionName);
             if (value is > 0)
             {
-                timeout = TimeSpan.FromMilliseconds(Math.Max(timeout.TotalMilliseconds, value.Value + TimeoutGrace.TotalMilliseconds));
+                timeout = TimeSpan.FromMilliseconds(Math.Max(timeout.TotalMilliseconds, value.Value + _timeoutGrace.TotalMilliseconds));
             }
         }
 
         return timeout;
+    }
+
+    private async Task WaitForExitOrGracePeriodAsync(Process process)
+    {
+        try
+        {
+            await Task.WhenAny(process.WaitForExitAsync(), Task.Delay(_timeoutGrace)).ConfigureAwait(false);
+        }
+        catch
+        {
+        }
+    }
+
+    private async Task<(bool Completed, string Stdout, string Stderr)> TryCaptureOutputWithinGraceAsync(Task<string> stdoutTask, Task<string> stderrTask)
+    {
+        var combinedTask = Task.WhenAll(stdoutTask, stderrTask);
+        var completedTask = await Task.WhenAny(combinedTask, Task.Delay(_timeoutGrace)).ConfigureAwait(false);
+        if (completedTask == combinedTask)
+        {
+            await combinedTask.ConfigureAwait(false);
+            return (true, stdoutTask.Result, stderrTask.Result);
+        }
+
+        return (false, string.Empty, string.Empty);
     }
 
     private static int? TryReadIntOption(IReadOnlyList<string> args, string optionName)

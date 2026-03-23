@@ -115,6 +115,22 @@ internal sealed class DevChecks
         Assert(processVersionResult.Success, "ProcessCommandRunner should report success for version.");
         Assert(string.IsNullOrWhiteSpace(processVersionResult.Stderr), "ProcessCommandRunner version should not write to stderr.");
         Assert(!string.IsNullOrWhiteSpace(processVersionResult.Stdout), "ProcessCommandRunner version should capture stdout.");
+
+        if (OperatingSystem.IsWindows())
+        {
+            var timeoutRunner = new ProcessCommandRunner(
+                "dotnet",
+                [typeof(CommandShell).Assembly.Location],
+                defaultTimeout: TimeSpan.FromMilliseconds(150),
+                timeoutGrace: TimeSpan.FromMilliseconds(150));
+            var timeoutStopwatch = Stopwatch.StartNew();
+            var timeoutResult = timeoutRunner.RunAsync(["sleep", "--duration-ms", "2000"]).GetAwaiter().GetResult();
+            timeoutStopwatch.Stop();
+
+            Assert(!timeoutResult.Success, "ProcessCommandRunner should fail timed-out commands.");
+            Assert(timeoutResult.Stderr.Contains("timed out", StringComparison.OrdinalIgnoreCase), "Timed-out ProcessCommandRunner commands should explain the timeout.");
+            Assert(timeoutStopwatch.Elapsed < TimeSpan.FromSeconds(2), $"Timed-out ProcessCommandRunner commands should return promptly, took {timeoutStopwatch.Elapsed.TotalMilliseconds:0}ms.");
+        }
     }
 
     private static void VerifyPointerMoveProfiles()
