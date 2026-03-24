@@ -295,7 +295,7 @@ public sealed class PeekWinMcpTools
             Opt("ref", reference)
         }.SelectMany(x => x);
 
-    private static int? ScaleWheelTicks(int? ticks) => ticks is null ? null : checked(ticks.Value * NativeMethods.WHEEL_DELTA);
+    private static int? ScaleWheelTicks(int? ticks) => ticks is null ? null : checked(-ticks.Value * NativeMethods.WHEEL_DELTA);
 
     private static IEnumerable<string?> Point(int? x, int? y)
         => new[] { Opt("x", x), Opt("y", y) }.SelectMany(x => x);

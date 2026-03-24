@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Xml.Linq;
@@ -24,6 +25,7 @@ internal sealed class DevChecks
             VerifySnapshotStore(repoRoot);
             VerifyCommandRunner();
             VerifyPointerMoveProfiles();
+            VerifyMcpScrollTickDirection();
             VerifyMcpHelp();
             VerifyMcpRejectsUnexpectedArgument(repoRoot);
             VerifyMcpStdioRoundTrip(repoRoot);
@@ -143,6 +145,18 @@ internal sealed class DevChecks
         var explicitZero = inputService.ResolveAutoMoveProfile(0, 0, 420, 180, 0, null);
         Assert(explicitZero.DurationMs == 0, "Explicit pointer move duration 0 should remain immediate.");
         Assert(explicitZero.Steps >= 12, "Explicit zero duration should not break the step profile.");
+    }
+
+    private static void VerifyMcpScrollTickDirection()
+    {
+        var method = typeof(PeekWin.Mcp.PeekWinMcpTools).GetMethod("ScaleWheelTicks", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert(method is not null, "PeekWinMcpTools should keep a private ScaleWheelTicks helper.");
+
+        var positiveTick = (int?)method!.Invoke(null, [1]);
+        var negativeTick = (int?)method.Invoke(null, [-1]);
+
+        Assert(positiveTick == -120, $"Positive MCP scroll ticks should map to negative wheel delta, got {positiveTick}.");
+        Assert(negativeTick == 120, $"Negative MCP scroll ticks should map to positive wheel delta, got {negativeTick}.");
     }
 
     private static void VerifyMcpHelp()
