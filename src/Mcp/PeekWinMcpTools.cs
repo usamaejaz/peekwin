@@ -62,11 +62,6 @@ public sealed class PeekWinMcpTools
     public Task<object?> WindowRestore(string? app, string? title, string? handle, string? window, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "window", "restore", WindowTarget(app, title, handle, window));
 
-    [McpServerTool(Name = "app_list", ReadOnly = true)]
-    [Description("List apps grouped by process name.")]
-    public Task<object?> AppList(string? name, CancellationToken cancellationToken)
-        => RunJson(cancellationToken, "app", "list", Opt("name", name));
-
     [McpServerTool(Name = "desktop_list", ReadOnly = true)]
     [Description("List virtual desktops.")]
     public Task<object?> DesktopList(CancellationToken cancellationToken)
@@ -116,16 +111,6 @@ public sealed class PeekWinMcpTools
     [Description("Release a mouse button, optionally at a target point.")]
     public Task<object?> MouseUp(string? button, int? x, int? y, int? screen, string? app, string? title, string? handle, string? window, string? reference, bool focus, CancellationToken cancellationToken)
         => RunJson(cancellationToken, "mouse", "up", Opt("button", button), Point(x, y), PointerTarget(screen, app, title, handle, window, reference), Flag("focus", focus));
-
-    [McpServerTool(Name = "ref_click")]
-    [Description("Activate a saved UI ref, using UI Automation invoke when available.")]
-    public Task<object?> RefClick(string reference, CancellationToken cancellationToken)
-        => RunJson(cancellationToken, "ref", "click", Opt("ref", reference));
-
-    [McpServerTool(Name = "ref_focus")]
-    [Description("Focus a saved UI ref.")]
-    public Task<object?> RefFocus(string reference, CancellationToken cancellationToken)
-        => RunJson(cancellationToken, "ref", "focus", Opt("ref", reference));
 
     [McpServerTool(Name = "type_text")]
     [Description("Type or paste text into a target window or saved UI ref.")]

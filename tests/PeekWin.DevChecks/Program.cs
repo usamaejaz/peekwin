@@ -271,6 +271,9 @@ internal sealed class DevChecks
         var tools = client.ListToolsAsync(cancellationToken: cancellationToken).GetAwaiter().GetResult();
         Assert(tools.Any(tool => string.Equals(tool.Name, "window_list", StringComparison.Ordinal)), $"MCP {transportName} tools/list should include window_list.");
         Assert(tools.Any(tool => string.Equals(tool.Name, "screen_layout", StringComparison.Ordinal)), $"MCP {transportName} tools/list should include screen_layout.");
+        Assert(!tools.Any(tool => string.Equals(tool.Name, "app_list", StringComparison.Ordinal)), $"MCP {transportName} tools/list should not expose app_list.");
+        Assert(!tools.Any(tool => string.Equals(tool.Name, "ref_click", StringComparison.Ordinal)), $"MCP {transportName} tools/list should not expose ref_click.");
+        Assert(!tools.Any(tool => string.Equals(tool.Name, "ref_focus", StringComparison.Ordinal)), $"MCP {transportName} tools/list should not expose ref_focus.");
         Assert(!tools.Any(tool => string.Equals(tool.Name, "image_info", StringComparison.Ordinal)), $"MCP {transportName} tools/list should not expose image_info alias.");
         Assert(!tools.Any(tool => string.Equals(tool.Name, "screenshot_info", StringComparison.Ordinal)), $"MCP {transportName} tools/list should not expose screenshot_info alias.");
         var seeUi = tools.SingleOrDefault(tool => string.Equals(tool.Name, "see_ui", StringComparison.Ordinal));
