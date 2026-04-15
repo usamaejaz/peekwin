@@ -43,6 +43,15 @@ New-Item -ItemType Directory -Path $stagingRoot -Force | Out-Null
 New-Item -ItemType Directory -Path $outputPath -Force | Out-Null
 Copy-Item -Path (Join-Path $templateRoot "*") -Destination $stagingRoot -Recurse -Force
 
+@(
+    (Join-Path $stagingRoot "tools\VERIFICATION.txt"),
+    (Join-Path $stagingRoot "tools\VERIFICATION.txt.template")
+) | ForEach-Object {
+    if (Test-Path $_) {
+        Remove-Item -Path $_ -Force
+    }
+}
+
 $replacements = @{
     '__VERSION__' = $Version
     '__URL64__' = $Url64
